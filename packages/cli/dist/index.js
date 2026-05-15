@@ -387,14 +387,21 @@ function getTemplateRoot() {
   }
   return resolve(__dirname, "..", "..", "..", "..");
 }
+var KQFORGE_GITIGNORE = `# Template content (pulled by init, do not commit)
+agents/
+skills/
+workflows/
+AGENTS.template.md
+`;
 async function initProject(options) {
   const { targetDir, projectName, platforms, force = false } = options;
   const result = { files: [], warnings: [] };
   const templateRoot = getTemplateRoot();
   const configDir = join3(targetDir, ".kqforge");
-  if (existsSync3(configDir) && !force) {
-    throw new Error(
-      "\u9879\u76EE\u5DF2\u521D\u59CB\u5316\uFF08.kqforge/ \u76EE\u5F55\u5DF2\u5B58\u5728\uFF09\u3002\u4F7F\u7528 --force \u8986\u76D6\u3002"
+  const alreadyExists = existsSync3(configDir);
+  if (alreadyExists && !force) {
+    result.warnings.push(
+      ".kqforge/ \u5DF2\u5B58\u5728\uFF0C\u8FDB\u5165\u67E5\u7F3A\u8865\u6F0F\u6A21\u5F0F\uFF08\u6A21\u677F\u5185\u5BB9\u5C06\u5237\u65B0\uFF0C\u5BA2\u5236\u5316\u6587\u4EF6\u4E0D\u8986\u76D6\uFF09"
     );
   }
   await mkdir(join3(configDir, "memory"), { recursive: true });
@@ -405,32 +412,36 @@ async function initProject(options) {
   await mkdir(join3(configDir, "workflows"), { recursive: true });
   await writeFile(join3(configDir, "memory", ".gitkeep"), "");
   await writeFile(join3(configDir, "paradigms", ".gitkeep"), "");
-  const config = {
-    version: 1,
-    project: { name: projectName },
-    defaults: {
-      autonomy: "L1",
-      workflow: "feature",
-      round_cap: 3,
-      reflect_on_error: true,
-      language: "zh-CN"
-    },
-    platforms,
-    memory: {
-      auto_capture: true,
-      max_entries_per_file: 50,
-      categories: ["rules", "facts", "lessons"]
-    },
-    quality: {
-      model: "triangle",
-      acceptance_criteria: true
-    },
-    disabled: { agents: [], skills: [], workflows: [] },
-    overrides: []
-  };
   const configPath = join3(configDir, "config.yaml");
-  await writeFile(configPath, stringifyYaml(config), "utf-8");
-  result.files.push({ path: ".kqforge/config.yaml", action: "created" });
+  if (!existsSync3(configPath) || force) {
+    const config = {
+      version: 1,
+      project: { name: projectName },
+      defaults: {
+        autonomy: "L1",
+        workflow: "feature",
+        round_cap: 3,
+        reflect_on_error: true,
+        language: "zh-CN"
+      },
+      platforms,
+      memory: {
+        auto_capture: true,
+        max_entries_per_file: 50,
+        categories: ["rules", "facts", "lessons"]
+      },
+      quality: {
+        model: "triangle",
+        acceptance_criteria: true
+      },
+      disabled: { agents: [], skills: [], workflows: [] },
+      overrides: []
+    };
+    await writeFile(configPath, stringifyYaml(config), "utf-8");
+    result.files.push({ path: ".kqforge/config.yaml", action: "created" });
+  } else {
+    result.files.push({ path: ".kqforge/config.yaml", action: "skipped" });
+  }
   const agentsSrc = join3(templateRoot, "agents");
   const agentsDest = join3(configDir, "agents");
   if (existsSync3(agentsSrc)) {
@@ -467,15 +478,24 @@ async function initProject(options) {
   const templateDest = join3(configDir, "AGENTS.template.md");
   if (existsSync3(templateSrc)) {
     await cp(templateSrc, templateDest, { force: true });
-    result.files.push({ path: ".kqforge/AGENTS.template.md", action: "created" });
+    result.files.push({
+      path: ".kqforge/AGENTS.template.md",
+      action: "created"
+    });
   }
   const customRulesDest = join3(configDir, "custom-rules.md");
-  const defaultCustomRules = `## \u81EA\u5B9A\u4E49\u89C4\u5219
+  if (!existsSync3(customRulesDest) || force) {
+    const defaultCustomRules = `## \u81EA\u5B9A\u4E49\u89C4\u5219
 
 \u5168\u7A0B\u4F7F\u7528\u4E2D\u6587\u3002
 `;
-  await writeFile(customRulesDest, defaultCustomRules, "utf-8");
-  result.files.push({ path: ".kqforge/custom-rules.md", action: "created" });
+    await writeFile(customRulesDest, defaultCustomRules, "utf-8");
+    result.files.push({ path: ".kqforge/custom-rules.md", action: "created" });
+  } else {
+    result.files.push({ path: ".kqforge/custom-rules.md", action: "skipped" });
+  }
+  const kqforgeGitignorePath = join3(configDir, ".gitignore");
+  await writeFile(kqforgeGitignorePath, KQFORGE_GITIGNORE, "utf-8");
   return result;
 }
 async function addPlatform(options) {
@@ -1359,7 +1379,7 @@ var initCommand = defineCommand({
     },
     force: {
       type: "boolean",
-      description: "\u5F3A\u5236\u8986\u76D6\u5DF2\u6709\u6587\u4EF6",
+      description: "\u5F3A\u5236\u8986\u76D6\u6240\u6709\u6587\u4EF6\uFF08\u5305\u62EC\u5DF2\u5BA2\u5236\u5316\u7684 config \u548C custom-rules\uFF09",
       default: false
     }
   },
@@ -1391,15 +1411,15 @@ var initCommand = defineCommand({
         platforms,
         force: args.force
       });
+      for (const warning of result.warnings) {
+        consola.warn(warning);
+      }
       for (const file of result.files) {
         if (file.action === "created") {
           consola.success(`\u521B\u5EFA ${file.path}`);
         } else {
-          consola.warn(`\u8DF3\u8FC7 ${file.path}`);
+          consola.info(`\u4FDD\u7559 ${file.path}\uFF08\u5DF2\u5B58\u5728\uFF0C\u672A\u8986\u76D6\uFF09`);
         }
-      }
-      for (const warning of result.warnings) {
-        consola.warn(warning);
       }
       if (platforms.length > 0) {
         consola.start("\u540C\u6B65\u5E73\u53F0\u914D\u7F6E...");

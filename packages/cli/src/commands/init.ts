@@ -22,7 +22,7 @@ export const initCommand = defineCommand({
     },
     force: {
       type: "boolean",
-      description: "强制覆盖已有文件",
+      description: "强制覆盖所有文件（包括已客制化的 config 和 custom-rules）",
       default: false,
     },
   },
@@ -62,16 +62,16 @@ export const initCommand = defineCommand({
       });
 
       // 输出 init 结果
+      for (const warning of result.warnings) {
+        consola.warn(warning);
+      }
+
       for (const file of result.files) {
         if (file.action === "created") {
           consola.success(`创建 ${file.path}`);
         } else {
-          consola.warn(`跳过 ${file.path}`);
+          consola.info(`保留 ${file.path}（已存在，未覆盖）`);
         }
-      }
-
-      for (const warning of result.warnings) {
-        consola.warn(warning);
       }
 
       // 如果指定了平台，自动执行 sync

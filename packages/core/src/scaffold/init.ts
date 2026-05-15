@@ -36,6 +36,14 @@ export function getTemplateRoot(): string {
   return resolve(__dirname, "..", "..", "..", "..");
 }
 
+/** .kqforge/.gitignore 的内容——忽略模板拉取的内容，避免提交到用户仓库 */
+const KQFORGE_GITIGNORE = `# Template content (pulled by init, do not commit)
+agents/
+skills/
+workflows/
+AGENTS.template.md
+`;
+
 export interface InitOptions {
   /** 目标项目目录 */
   targetDir: string;
@@ -55,7 +63,13 @@ export interface InitResult {
 /**
  * 初始化 KQ-Forge 到目标项目
  *
- * 只在 .kqforge/ 内部存放源文件（single source of truth）。
+ * 行为模式：
+ * - 首次 init：创建完整 .kqforge/ 结构
+ * - 重复 init（.kqforge/ 已存在）：查缺补漏模式
+ *   - 模板内容（agents/skills/workflows/AGENTS.template.md）始终刷新（它们被 gitignore）
+ *   - 用户客制化内容（config.yaml/custom-rules.md）仅在不存在时创建，不覆盖
+ * - --force：强制覆盖所有内容
+ *
  * 平台原生文件由各适配器的 sync() 生成。
  */
 export async function initProject(options: InitOptions): Promise<InitResult> {
@@ -63,15 +77,16 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
   const result: InitResult = { files: [], warnings: [] };
   const templateRoot = getTemplateRoot();
 
-  // 检查是否已初始化
   const configDir = join(targetDir, ".kqforge");
-  if (existsSync(configDir) && !force) {
-    throw new Error(
-      "项目已初始化（.kqforge/ 目录已存在）。使用 --force 覆盖。"
+  const alreadyExists = existsSync(configDir);
+
+  if (alreadyExists && !force) {
+    result.warnings.push(
+      ".kqforge/ 已存在，进入查缺补漏模式（模板内容将刷新，客制化文件不覆盖）"
     );
   }
 
-  // 1. 创建 .kqforge/ 目录结构
+  // 1. 创建 .kqforge/ 目录结构（mkdir recursive 对已存在目录无副作用）
   await mkdir(join(configDir, "memory"), { recursive: true });
   await mkdir(join(configDir, "paradigms"), { recursive: true });
   await mkdir(join(configDir, "platforms"), { recursive: true });
@@ -79,40 +94,45 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
   await mkdir(join(configDir, "skills"), { recursive: true });
   await mkdir(join(configDir, "workflows"), { recursive: true });
 
-  // 写入 .gitkeep
+  // 写入 .gitkeep（幂等）
   await writeFile(join(configDir, "memory", ".gitkeep"), "");
   await writeFile(join(configDir, "paradigms", ".gitkeep"), "");
 
-  // 2. 生成 config.yaml
-  const config: KqForgeConfig = {
-    version: 1,
-    project: { name: projectName },
-    defaults: {
-      autonomy: "L1",
-      workflow: "feature",
-      round_cap: 3,
-      reflect_on_error: true,
-      language: "zh-CN",
-    },
-    platforms,
-    memory: {
-      auto_capture: true,
-      max_entries_per_file: 50,
-      categories: ["rules", "facts", "lessons"],
-    },
-    quality: {
-      model: "triangle",
-      acceptance_criteria: true,
-    },
-    disabled: { agents: [], skills: [], workflows: [] },
-    overrides: [],
-  };
-
+  // 2. 生成 config.yaml（仅在不存在或 force 时写入）
   const configPath = join(configDir, "config.yaml");
-  await writeFile(configPath, stringifyYaml(config), "utf-8");
-  result.files.push({ path: ".kqforge/config.yaml", action: "created" });
+  if (!existsSync(configPath) || force) {
+    const config: KqForgeConfig = {
+      version: 1,
+      project: { name: projectName },
+      defaults: {
+        autonomy: "L1",
+        workflow: "feature",
+        round_cap: 3,
+        reflect_on_error: true,
+        language: "zh-CN",
+      },
+      platforms,
+      memory: {
+        auto_capture: true,
+        max_entries_per_file: 50,
+        categories: ["rules", "facts", "lessons"],
+      },
+      quality: {
+        model: "triangle",
+        acceptance_criteria: true,
+      },
+      disabled: { agents: [], skills: [], workflows: [] },
+      overrides: [],
+    };
 
-  // 3. 复制模板文件到 .kqforge/ 内部（不再复制到项目根）
+    await writeFile(configPath, stringifyYaml(config), "utf-8");
+    result.files.push({ path: ".kqforge/config.yaml", action: "created" });
+  } else {
+    result.files.push({ path: ".kqforge/config.yaml", action: "skipped" });
+  }
+
+  // 3. 复制模板文件到 .kqforge/ 内部
+  //    模板内容始终刷新（它们被 .gitignore 忽略，每个用户独立 init 拉取）
 
   // agents/ → .kqforge/agents/
   const agentsSrc = join(templateRoot, "agents");
@@ -153,19 +173,30 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
   }
   result.files.push({ path: ".kqforge/skills/", action: "created" });
 
-  // AGENTS.template.md → .kqforge/AGENTS.template.md
+  // AGENTS.template.md → .kqforge/AGENTS.template.md（模板内容，始终刷新）
   const templateSrc = join(templateRoot, "AGENTS.template.md");
   const templateDest = join(configDir, "AGENTS.template.md");
   if (existsSync(templateSrc)) {
     await cp(templateSrc, templateDest, { force: true });
-    result.files.push({ path: ".kqforge/AGENTS.template.md", action: "created" });
+    result.files.push({
+      path: ".kqforge/AGENTS.template.md",
+      action: "created",
+    });
   }
 
-  // custom-rules.md → .kqforge/custom-rules.md
+  // custom-rules.md → .kqforge/custom-rules.md（用户客制化内容，仅在不存在或 force 时写入）
   const customRulesDest = join(configDir, "custom-rules.md");
-  const defaultCustomRules = `## 自定义规则\n\n全程使用中文。\n`;
-  await writeFile(customRulesDest, defaultCustomRules, "utf-8");
-  result.files.push({ path: ".kqforge/custom-rules.md", action: "created" });
+  if (!existsSync(customRulesDest) || force) {
+    const defaultCustomRules = `## 自定义规则\n\n全程使用中文。\n`;
+    await writeFile(customRulesDest, defaultCustomRules, "utf-8");
+    result.files.push({ path: ".kqforge/custom-rules.md", action: "created" });
+  } else {
+    result.files.push({ path: ".kqforge/custom-rules.md", action: "skipped" });
+  }
+
+  // 4. 写入 .kqforge/.gitignore（忽略模板内容，始终覆盖以保持最新）
+  const kqforgeGitignorePath = join(configDir, ".gitignore");
+  await writeFile(kqforgeGitignorePath, KQFORGE_GITIGNORE, "utf-8");
 
   return result;
 }
