@@ -539,6 +539,78 @@ var PACKAGES = [
     description: "API \u5F00\u53D1\u573A\u666F\u5305\uFF08API \u8BBE\u8BA1\u3001\u6570\u636E\u5E93\u3001\u5B89\u5168\uFF09",
     skills: ["api", "database", "security-advanced"],
     workflows: []
+  },
+  {
+    name: "python",
+    description: "Python \u5168\u6808\u5F00\u53D1\u573A\u666F\u5305\uFF08\u7F16\u7801\u89C4\u8303\u3001\u6D4B\u8BD5\u7B56\u7565\u3001Web \u6846\u67B6\u6700\u4F73\u5B9E\u8DF5\uFF09",
+    skills: ["python"],
+    workflows: []
+  },
+  {
+    name: "golang",
+    description: "Go \u8BED\u8A00\u5F00\u53D1\u573A\u666F\u5305\uFF08\u60EF\u7528\u6A21\u5F0F\u3001\u9879\u76EE\u5E03\u5C40\u3001\u5E76\u53D1\u4E0E\u6D4B\u8BD5\uFF09",
+    skills: ["golang"],
+    workflows: []
+  },
+  {
+    name: "rust",
+    description: "Rust \u5F00\u53D1\u573A\u666F\u5305\uFF08\u6240\u6709\u6743\u3001\u9519\u8BEF\u5904\u7406\u3001trait \u8BBE\u8BA1\u3001\u5E76\u53D1\u4E0E\u6D4B\u8BD5\uFF09",
+    skills: ["rust"],
+    workflows: []
+  },
+  {
+    name: "java",
+    description: "Java/Kotlin \u5168\u6808\u5F00\u53D1\u573A\u666F\u5305\uFF08\u7F16\u7801\u89C4\u8303\u3001Spring Boot\u3001JPA\u3001\u6D4B\u8BD5\uFF09",
+    skills: ["java"],
+    workflows: []
+  },
+  {
+    name: "cpp",
+    description: "\u73B0\u4EE3 C++\uFF0817/20\uFF09\u5F00\u53D1\u573A\u666F\u5305\uFF08\u7F16\u7801\u89C4\u8303\u3001RAII\u3001\u667A\u80FD\u6307\u9488\u4E0E\u6D4B\u8BD5\uFF09",
+    skills: ["cpp"],
+    workflows: []
+  },
+  {
+    name: "dotnet",
+    description: ".NET/C#/F# \u5F00\u53D1\u573A\u666F\u5305\uFF08\u6846\u67B6\u6A21\u5F0F\u4E0E\u6D4B\u8BD5\u7B56\u7565\uFF09",
+    skills: ["dotnet"],
+    workflows: []
+  },
+  {
+    name: "mobile",
+    description: "\u79FB\u52A8\u7AEF\u5F00\u53D1\u573A\u666F\u5305\uFF08Android\u3001iOS\u3001\u8DE8\u5E73\u53F0\u6846\u67B6\u6A21\u5F0F\uFF09",
+    skills: ["mobile"],
+    workflows: []
+  },
+  {
+    name: "devops",
+    description: "DevOps \u573A\u666F\u5305\uFF08CI/CD\u3001\u5BB9\u5668\u5316\u3001\u90E8\u7F72\u7B56\u7565\u4E0E\u751F\u4EA7\u5BA1\u8BA1\uFF09",
+    skills: ["devops"],
+    workflows: []
+  },
+  {
+    name: "ai-ml",
+    description: "AI/ML \u5F00\u53D1\u573A\u666F\u5305\uFF08LLM \u7BA1\u9053\u3001ML \u5DE5\u4F5C\u6D41\u3001Prompt \u4F18\u5316\u3001PyTorch \u6A21\u5F0F\uFF09",
+    skills: ["ai-ml"],
+    workflows: []
+  },
+  {
+    name: "documentation",
+    description: "\u6587\u6863\u5DE5\u7A0B\u573A\u666F\u5305\uFF08\u4EE3\u7801\u5BFC\u89C8\u4E0E\u65B0\u4EBA\u4E0A\u624B\u6307\u5357\uFF09",
+    skills: ["documentation"],
+    workflows: []
+  },
+  {
+    name: "performance",
+    description: "\u6027\u80FD\u5DE5\u7A0B\u573A\u666F\u5305\uFF08\u57FA\u51C6\u6D4B\u8BD5\u3001\u6027\u80FD\u5256\u6790\u4E0E\u4F18\u5316\u6E05\u5355\uFF09",
+    skills: ["performance"],
+    workflows: []
+  },
+  {
+    name: "workflow-advanced",
+    description: "\u9AD8\u7EA7\u5DE5\u4F5C\u6D41\u573A\u666F\u5305\uFF08\u67B6\u6784\u51B3\u7B56\u8BB0\u5F55\u4E0E\u641C\u7D22\u4F18\u5148\u7B56\u7565\uFF09",
+    skills: ["workflow-advanced"],
+    workflows: []
   }
 ];
 function getPackage(name) {
@@ -1559,50 +1631,59 @@ import { resolve as resolve4 } from "path";
 var addCommand = defineCommand3({
   meta: {
     name: "add",
-    description: "\u6DFB\u52A0\u573A\u666F\u5305"
+    description: "\u6DFB\u52A0\u573A\u666F\u5305\uFF08\u652F\u6301\u540C\u65F6\u6DFB\u52A0\u591A\u4E2A\uFF09"
   },
   args: {
-    package: {
+    packages: {
       type: "positional",
-      description: "\u573A\u666F\u5305\u540D\u79F0 (frontend | api)",
+      description: "\u573A\u666F\u5305\u540D\u79F0\uFF0C\u652F\u6301\u591A\u4E2A\uFF08\u5982 frontend python golang\uFF09",
       required: true
     }
   },
   async run({ args }) {
     const targetDir = resolve4(".");
-    consola3.start(`\u6DFB\u52A0\u573A\u666F\u5305: ${args.package}`);
-    const result = await addPackage({
-      targetDir,
-      packageName: args.package
-    });
-    if (!result.success) {
-      consola3.error(result.message);
-      process.exit(1);
-    }
-    if (result.addedSkills.length > 0) {
-      consola3.success(`\u6DFB\u52A0 skills: ${result.addedSkills.join(", ")}`);
-    }
-    if (result.addedWorkflows.length > 0) {
-      consola3.success(`\u6DFB\u52A0 workflows: ${result.addedWorkflows.join(", ")}`);
-    }
-    if (result.skipped.length > 0) {
-      for (const s of result.skipped) {
-        consola3.warn(`\u8DF3\u8FC7: ${s}`);
+    const packageNames = [
+      .../* @__PURE__ */ new Set([
+        args.packages,
+        ...args._ || []
+      ])
+    ];
+    let hasNewContent = false;
+    for (const packageName of packageNames) {
+      consola3.start(`\u6DFB\u52A0\u573A\u666F\u5305: ${packageName}`);
+      const result = await addPackage({
+        targetDir,
+        packageName
+      });
+      if (!result.success) {
+        consola3.error(result.message);
+        process.exit(1);
       }
-    }
-    consola3.success(result.message);
-    if (result.addedSkills.length > 0 || result.addedWorkflows.length > 0) {
-      consola3.start("\u540C\u6B65\u5E73\u53F0\u914D\u7F6E...");
-      try {
-        const syncResult = await syncPlatforms(targetDir);
-        for (const { name, result: platformResult } of syncResult.platforms) {
-          const newFiles = platformResult.files.length;
-          consola3.success(`[${name}] \u540C\u6B65 ${newFiles} \u4E2A\u6587\u4EF6`);
+      if (result.addedSkills.length > 0) {
+        consola3.success(`\u6DFB\u52A0 skills: ${result.addedSkills.join(", ")}`);
+        hasNewContent = true;
+      }
+      if (result.addedWorkflows.length > 0) {
+        consola3.success(`\u6DFB\u52A0 workflows: ${result.addedWorkflows.join(", ")}`);
+        hasNewContent = true;
+      }
+      if (result.skipped.length > 0) {
+        for (const s of result.skipped) {
+          consola3.warn(`\u8DF3\u8FC7: ${s}`);
         }
-      } catch (e) {
-        consola3.warn(`\u540C\u6B65\u5931\u8D25: ${e.message}`);
-        consola3.info("\u53EF\u7A0D\u540E\u624B\u52A8\u8FD0\u884C kq-forge sync");
       }
+      consola3.success(result.message);
+    }
+    consola3.start("\u540C\u6B65\u5E73\u53F0\u914D\u7F6E...");
+    try {
+      const syncResult = await syncPlatforms(targetDir);
+      for (const { name, result: platformResult } of syncResult.platforms) {
+        const newFiles = platformResult.files.length;
+        consola3.success(`[${name}] \u540C\u6B65 ${newFiles} \u4E2A\u6587\u4EF6`);
+      }
+    } catch (e) {
+      consola3.warn(`\u540C\u6B65\u5931\u8D25: ${e.message}`);
+      consola3.info("\u53EF\u7A0D\u540E\u624B\u52A8\u8FD0\u884C kq-forge sync");
     }
   }
 });
