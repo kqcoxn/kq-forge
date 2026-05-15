@@ -1,0 +1,864 @@
+# KQ-Forge Config Schema 定义
+# 本文件定义 .kqforge/ 下所有配置文件的完整 schema
+# 格式：JSON Schema (YAML 表示)，供实现时参考和校验
+
+---
+
+# ============================================================
+# 1. 主配置文件 .kqforge/config.yaml
+# ============================================================
+
+config:
+  $schema: "https://json-schema.org/draft/2020-12/schema"
+  title: "KQ-Forge 项目配置"
+  description: "项目级全局设置，控制默认行为、平台、质量模型等"
+  type: object
+  required: [version, project, defaults]
+
+  properties:
+
+    # ----------------------------------------------------------
+    # 元信息
+    # ----------------------------------------------------------
+    version:
+      type: integer
+      const: 1
+      description: "Schema 版本号，用于未来迁移"
+
+    project:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: "项目名称"
+          examples: ["my-saas-app"]
+        description:
+          type: string
+          description: "项目简述，会注入到 Agent 上下文中"
+          examples: ["基于 Next.js 的 SaaS 应用，包含用户管理和计费模块"]
+
+    # ----------------------------------------------------------
+    # 全局默认值
+    # ----------------------------------------------------------
+    defaults:
+      type: object
+      properties:
+        autonomy:
+          $ref: "#/$defs/autonomy_level"
+          default: "L1"
+          description: "全局默认自动化等级"
+        workflow:
+          type: string
+          default: "feature"
+          description: "默认工作流名称（对应 workflows/ 下的文件名，不含扩展名）"
+        round_cap:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 3
+          description: "对抗性 review 的默认最大轮次"
+        reflect_on_error:
+          type: boolean
+          default: true
+          description: "错误发生后是否强制触发反思流程"
+        language:
+          type: string
+          default: "zh-CN"
+          description: "Agent 输出语言偏好"
+          examples: ["zh-CN", "en-US", "ja-JP"]
+
+    # ----------------------------------------------------------
+    # 平台
+    # ----------------------------------------------------------
+    platforms:
+      type: array
+      description: "已启用的平台列表。每个平台的详细配置在 .kqforge/platforms/{name}.yaml"
+      items:
+        type: string
+        enum: ["claude-code", "opencode", "codex"]
+      default: []
+      examples:
+        - ["claude-code", "opencode"]
+
+    # ----------------------------------------------------------
+    # 记忆管理
+    # ----------------------------------------------------------
+    memory:
+      type: object
+      properties:
+        auto_capture:
+          type: boolean
+          default: true
+          description: "是否在反思流程中自动捕获记忆"
+        max_entries_per_file:
+          type: integer
+          minimum: 10
+          maximum: 200
+          default: 50
+          description: "单个记忆文件的最大条目数，超出后归档旧条目"
+        categories:
+          type: array
+          items:
+            type: string
+          default: ["rules", "facts", "lessons"]
+          description: "记忆分类，对应 memory/ 下的文件名"
+
+    # ----------------------------------------------------------
+    # 质量保障
+    # ----------------------------------------------------------
+    quality:
+      type: object
+      properties:
+        model:
+          type: string
+          enum: ["triangle", "linear", "none"]
+          default: "triangle"
+          description: |
+            质量模型：
+            - triangle: Writer/Reviewer/Judge 三角对抗（默认）
+            - linear: Writer → Reviewer 单向审查（轻量）
+            - none: 无审查（仅用于 spike/prototype）
+        acceptance_criteria:
+          type: boolean
+          default: true
+          description: "是否强制要求在任务开始前定义验收标准"
+        round_cap:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: "质量审查专用 round_cap，覆盖 defaults.round_cap"
+
+    # ----------------------------------------------------------
+    # 黑名单（自动发现的排除项）
+    # ----------------------------------------------------------
+    disabled:
+      type: object
+      properties:
+        agents:
+          type: array
+          items:
+            type: string
+          default: []
+          description: "禁用的 Agent 名称列表"
+        skills:
+          type: array
+          items:
+            type: string
+          default: []
+          description: "禁用的 Skill 名称列表"
+        workflows:
+          type: array
+          items:
+            type: string
+          default: []
+          description: "禁用的 Workflow 名称列表"
+
+    # ----------------------------------------------------------
+    # 逃生舱 / 覆盖规则
+    # ----------------------------------------------------------
+    overrides:
+      type: array
+      description: |
+        覆盖规则列表。按顺序匹配，更具体的规则优先。
+        支持两种匹配方式：路径 glob（确定性）和 task 标签（语义性）。
+        两者同时命中时：窄 glob > 宽 glob > task 标签。
+      items:
+        type: object
+        oneOf:
+          - required: [match]
+          - required: [task]
+        properties:
+          match:
+            type: string
+            description: "文件路径 glob 模式"
+            examples: ["tests/**", "src/auth/**", "*.config.*"]
+          task:
+            type: string
+            description: "任务类型标签（由 workflow step 或用户命令声明）"
+            examples: ["formatting", "architecture", "documentation", "migration"]
+          autonomy:
+            $ref: "#/$defs/autonomy_level"
+            description: "覆盖自动化等级"
+          workflow:
+            type: string
+            description: "覆盖默认工作流"
+          round_cap:
+            type: integer
+            minimum: 1
+            maximum: 10
+            description: "覆盖对抗轮次上限"
+          quality:
+            type: string
+            enum: ["triangle", "linear", "none"]
+            description: "覆盖质量模型"
+
+  # ----------------------------------------------------------
+  # 共享类型定义
+  # ----------------------------------------------------------
+  $defs:
+    autonomy_level:
+      type: string
+      enum: ["L0", "L1", "L2", "L3"]
+      description: |
+        自动化等级：
+        - L0: 全手动 — Agent 建议，人执行
+        - L1: 半自动 — Agent 执行，关键节点等人确认
+        - L2: 监督自动 — Agent 全自动，人异步 review
+        - L3: 全自动 — Agent 自主完成，仅失败时通知
+
+
+---
+
+# ============================================================
+# 2. Agent 定义 .kqforge/agents/{name}.md
+# ============================================================
+
+agent:
+  $schema: "https://json-schema.org/draft/2020-12/schema"
+  title: "KQ-Forge Agent 定义"
+  description: |
+    Agent 文件格式：YAML frontmatter + Markdown body
+    frontmatter 定义元数据，body 是系统提示词（角色、职责、行为约束）
+  type: object
+  required: [name, scope, autonomy, required_skills]
+
+  properties:
+    name:
+      type: string
+      pattern: "^[a-z][a-z0-9-]*$"
+      description: "唯一标识符，小写字母+数字+连字符"
+      examples: ["lead", "implementer", "reviewer", "judge"]
+
+    description:
+      type: string
+      description: "简述，用于路由匹配和上下文注入"
+      examples: ["负责任务分解、编排和反思沉淀的主 Agent"]
+
+    scope:
+      oneOf:
+        - type: string
+        - type: array
+          items:
+            type: string
+      description: |
+        管辖范围，文件路径 glob 模式。
+        Agent 只对 scope 内的文件有操作权限。
+        使用 "**" 表示全局管辖。
+      examples:
+        - "src/**"
+        - ["src/api/**", "src/models/**"]
+        - "**"
+
+    autonomy:
+      $ref: "#/$defs/autonomy_level"
+      default: "L1"
+      description: "该 Agent 的默认自动化等级（可被 workflow step 覆盖）"
+
+    required_skills:
+      type: array
+      items:
+        type: string
+      description: |
+        强制绑定的 skills 列表。
+        无论什么工作流调用该 Agent，这些 skills 的约束始终生效。
+        通常是垂直领域约束或底线规则。
+      examples:
+        - ["implement", "test-first"]
+        - ["review", "security-check"]
+
+    optional_skills:
+      type: array
+      items:
+        type: string
+      default: []
+      description: "可选 skills，按任务需要动态加载"
+      examples:
+        - ["debug", "refactor", "performance"]
+
+    triggers:
+      type: array
+      items:
+        type: object
+        required: [event]
+        properties:
+          event:
+            type: string
+            description: "触发事件名"
+            examples: ["file_changed", "error_occurred", "review_requested"]
+          condition:
+            type: string
+            description: "触发条件表达式（可选）"
+            examples: ["path matches 'src/api/**'", "error.type == 'type_error'"]
+      description: "自动触发条件（可选）。满足条件时 Agent 被自动调用"
+
+    delegates_to:
+      type: array
+      items:
+        type: string
+      default: []
+      description: "该 Agent 可委派任务的下级 Agent 列表"
+      examples:
+        - ["implementer", "reviewer"]
+
+  # Agent body (Markdown) 规范：
+  # - 第一段：角色定义（你是谁）
+  # - 第二段：职责范围（你负责什么）
+  # - 第三段：行为约束（你必须/不能做什么）
+  # - 第四段：协作协议（你如何与其他 Agent 交互）
+  # - 第五段：输出格式（你的产出应该是什么样的）
+
+
+---
+
+# ============================================================
+# 3. Skill 定义 .kqforge/skills/{name}.md
+# ============================================================
+
+skill:
+  $schema: "https://json-schema.org/draft/2020-12/schema"
+  title: "KQ-Forge Skill 定义"
+  description: |
+    Skill 文件格式：YAML frontmatter + Markdown body
+    frontmatter 定义元数据，body 是具体的规则/指导内容
+  type: object
+  required: [name, type]
+
+  properties:
+    name:
+      type: string
+      pattern: "^[a-z][a-z0-9-]*$"
+      description: "唯一标识符"
+      examples: ["implement", "test-first", "api-conventions", "security-check"]
+
+    description:
+      type: string
+      description: "简述，用于 Agent 按需发现和加载"
+      examples: ["确保所有实现遵循 TDD 流程"]
+
+    type:
+      type: string
+      enum: ["constraint", "capability"]
+      description: |
+        Skill 类型：
+        - constraint: 约束类 — 定义"不能做什么"或"必须怎么做"
+        - capability: 能力类 — 定义"如何做某事"的专家知识
+
+    applies_to:
+      oneOf:
+        - type: string
+        - type: array
+          items:
+            type: string
+      description: "适用范围（文件路径 glob），不设则全局适用"
+      examples:
+        - "src/**"
+        - ["src/api/**", "src/models/**"]
+
+    priority:
+      type: integer
+      minimum: 0
+      maximum: 100
+      default: 50
+      description: |
+        优先级（0-100）。当多个 skill 的规则冲突时，高优先级生效。
+        约束类建议 60-90，能力类建议 30-60。
+
+    depends_on:
+      type: array
+      items:
+        type: string
+      default: []
+      description: "依赖的其他 skills（加载该 skill 时自动加载依赖）"
+
+  # Skill body (Markdown) 规范：
+  # constraint 类型：
+  #   - ## 规则：必须遵守的条目列表
+  #   - ## 禁止：绝对不能做的事
+  #   - ## 例外：规则不适用的场景
+  #
+  # capability 类型：
+  #   - ## 何时使用：触发条件
+  #   - ## 步骤：具体操作流程
+  #   - ## 示例：参考案例
+  #   - ## 常见错误：避坑指南
+
+
+---
+
+# ============================================================
+# 4. Workflow 定义 .kqforge/workflows/{name}.md
+# ============================================================
+
+workflow:
+  $schema: "https://json-schema.org/draft/2020-12/schema"
+  title: "KQ-Forge Workflow 定义"
+  description: |
+    Workflow 文件格式：YAML frontmatter + Markdown body
+    frontmatter 定义流程结构，body 是补充说明和使用指南
+  type: object
+  required: [name, steps]
+
+  properties:
+    name:
+      type: string
+      pattern: "^[a-z][a-z0-9-]*$"
+      description: "唯一标识符，也是 /workflow 命令的参数"
+      examples: ["feature", "bugfix", "refactor", "spike"]
+
+    description:
+      type: string
+      description: "工作流简述"
+      examples: ["标准功能开发流程：设计 → 实现 → 审查 → 裁决 → 反思"]
+
+    triggers:
+      type: array
+      items:
+        type: string
+      description: "触发命令别名"
+      examples:
+        - ["/workflow feature", "/feat"]
+
+    steps:
+      type: array
+      minItems: 1
+      items:
+        type: object
+        required: [agent, action]
+        properties:
+          agent:
+            type: string
+            description: "执行该步骤的 Agent 名称"
+          action:
+            type: string
+            description: |
+              动作名称，由 Agent 的 skills 决定具体行为。
+              常见动作：decompose, design, implement, review, judge, reflect, summarize
+          autonomy:
+            $ref: "#/$defs/autonomy_level"
+            description: "覆盖该 Agent 在此步骤的自动化等级"
+          round_cap:
+            type: integer
+            minimum: 1
+            maximum: 10
+            description: "该步骤的对抗轮次上限"
+          gate:
+            type: object
+            properties:
+              enabled:
+                type: boolean
+                default: true
+                description: "是否启用门控"
+              min_autonomy:
+                $ref: "#/$defs/autonomy_level"
+                default: "L1"
+                description: |
+                  门控生效的最低等级。
+                  当运行时 autonomy >= min_autonomy 时，门控自动跳过。
+                  例：min_autonomy: L2 表示 L0/L1 时需人确认，L2/L3 时自动通过。
+              message:
+                type: string
+                description: "门控等待时显示给人类的提示信息"
+                examples: ["架构设计已完成，请确认后继续实现"]
+            description: "门控节点配置"
+          on_fail:
+            type: string
+            enum: ["retry", "skip", "abort", "escalate"]
+            default: "retry"
+            description: |
+              失败策略：
+              - retry: 重试（受 round_cap 限制）
+              - skip: 跳过该步骤继续
+              - abort: 终止整个工作流
+              - escalate: 提升 autonomy 等级（如 L3→L1），请求人类介入
+          task_tag:
+            type: string
+            description: "该步骤的任务标签，用于匹配 overrides 中的 task 规则"
+            examples: ["architecture", "implementation", "formatting"]
+          condition:
+            type: string
+            description: "步骤执行条件表达式（可选），不满足则跳过"
+            examples: ["has_tests == true", "file_count > 5"]
+
+    on_complete:
+      type: string
+      enum: ["reflect", "summarize", "none"]
+      default: "reflect"
+      description: "工作流完成后的收尾动作"
+
+    loop:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: false
+        max_iterations:
+          type: integer
+          minimum: 1
+          default: 5
+        until:
+          type: string
+          description: "循环终止条件"
+          examples: ["all_tests_pass", "reviewer_approved"]
+      description: "工作流是否支持整体循环（如持续集成场景）"
+
+
+---
+
+# ============================================================
+# 5. 平台适配器配置 .kqforge/platforms/{name}.yaml
+# ============================================================
+
+platform:
+  $schema: "https://json-schema.org/draft/2020-12/schema"
+  title: "KQ-Forge 平台适配器配置"
+  description: |
+    每个平台一个文件，定义如何将 KQ-Forge 配置转译为该平台的原生格式。
+    文件名即平台标识：claude-code.yaml, opencode.yaml, codex.yaml
+  type: object
+  required: [platform, output]
+
+  properties:
+    platform:
+      type: string
+      enum: ["claude-code", "opencode", "codex"]
+      description: "平台标识"
+
+    output:
+      type: object
+      required: [directory]
+      properties:
+        directory:
+          type: string
+          description: "输出目录（相对于项目根）"
+          examples: [".claude", ".opencode", "."]
+        entry_file:
+          type: string
+          description: "入口文件名"
+          examples: ["CLAUDE.md", "agents.md", "AGENTS.md"]
+        agent_format:
+          type: string
+          enum: ["single-file", "directory"]
+          default: "single-file"
+          description: |
+            Agent 输出格式：
+            - single-file: 所有 Agent 合并到入口文件
+            - directory: 每个 Agent 独立文件
+
+    mapping:
+      type: object
+      description: "字段映射规则（KQ-Forge 字段 → 平台字段）"
+      properties:
+        autonomy_to_mode:
+          type: object
+          description: "自动化等级到平台模式的映射"
+          additionalProperties:
+            type: string
+          examples:
+            - L0: "manual"
+              L1: "confirm"
+              L2: "auto-review"
+              L3: "autonomous"
+        skill_injection:
+          type: string
+          enum: ["inline", "reference", "append"]
+          default: "inline"
+          description: |
+            Skill 内容注入方式：
+            - inline: 将 skill 内容直接嵌入 Agent 提示词
+            - reference: 仅引用 skill 文件路径
+            - append: 追加到入口文件末尾
+
+    sync:
+      type: object
+      properties:
+        auto:
+          type: boolean
+          default: true
+          description: "配置变更时是否自动同步到平台目录"
+        watch:
+          type: boolean
+          default: false
+          description: "是否启用文件监听实时同步（需 CLI 后台运行）"
+        on_conflict:
+          type: string
+          enum: ["overwrite", "merge", "ask"]
+          default: "overwrite"
+          description: "平台目录已有文件时的冲突策略"
+
+    platform_specific:
+      type: object
+      description: "平台特有配置（自由格式，由适配器自行解析）"
+      additionalProperties: true
+      examples:
+        - # claude-code 特有
+          permissions:
+            allow_edit: true
+            allow_bash: true
+            allow_mcp: false
+        - # opencode 特有
+          model: "claude-sonnet-4-20250514"
+          provider: "anthropic"
+
+
+---
+
+# ============================================================
+# 6. 记忆文件 .kqforge/memory/{category}.md
+# ============================================================
+
+memory:
+  $schema: "https://json-schema.org/draft/2020-12/schema"
+  title: "KQ-Forge 记忆文件"
+  description: |
+    记忆文件格式：Markdown 列表，每条记忆一个条目。
+    文件名对应 config.yaml 中 memory.categories 定义的分类。
+    默认分类：rules.md, facts.md, lessons.md
+  type: object
+
+  properties:
+    # 文件头部 frontmatter（可选）
+    category:
+      type: string
+      description: "记忆分类"
+      examples: ["rules", "facts", "lessons"]
+    max_entries:
+      type: integer
+      description: "覆盖全局 max_entries_per_file"
+    auto_inject:
+      type: boolean
+      default: true
+      description: "是否自动注入到 Agent 上下文"
+    inject_to:
+      type: array
+      items:
+        type: string
+      description: "指定注入到哪些 Agent（不设则注入所有）"
+      examples:
+        - ["implementer", "reviewer"]
+
+  # 记忆条目格式规范：
+  #
+  # ## rules.md（规则与约束）
+  # - [2025-01-15] 本项目使用 pnpm，禁止使用 npm/yarn
+  # - [2025-01-16] API 响应统一使用 envelope 格式 { data, error, meta }
+  #
+  # ## facts.md（事实记录）
+  # - [2025-01-15] 数据库使用 PostgreSQL 15，ORM 使用 Prisma
+  # - [2025-01-16] 部署环境：AWS ECS + RDS
+  #
+  # ## lessons.md（教训沉淀）
+  # - [2025-01-15] auth 模块修改后必须跑完整集成测试，上次局部测试通过但集成失败
+  # - [2025-01-16] 不要在 middleware 中直接抛异常，应返回错误响应
+
+
+---
+
+# ============================================================
+# 7. 范式文件 .kqforge/paradigms/{name}.md
+# ============================================================
+
+paradigm:
+  $schema: "https://json-schema.org/draft/2020-12/schema"
+  title: "KQ-Forge 范式定义"
+  description: |
+    范式是从记忆中提炼的抽象模式，格式与 Agent 定义相同。
+    通过 /evolve 命令手动触发生成。
+    生成后即成为一个可被引用的专家 Agent。
+  type: object
+  required: [name, source, pattern]
+
+  properties:
+    name:
+      type: string
+      pattern: "^[a-z][a-z0-9-]*$"
+      description: "范式名称，生成后可作为 Agent 引用"
+      examples: ["api-expert", "prisma-patterns", "error-handling-guru"]
+
+    source:
+      type: object
+      properties:
+        memories:
+          type: array
+          items:
+            type: string
+          description: "提炼来源的记忆条目引用"
+        extracted_at:
+          type: string
+          format: date
+          description: "提炼日期"
+      description: "溯源信息"
+
+    pattern:
+      type: string
+      description: "提炼出的抽象模式描述"
+      examples: ["本项目的 API 开发总是遵循：先定义 Zod schema → 生成类型 → 写 handler → 写集成测试"]
+
+    # 以下字段与 Agent 定义相同
+    scope:
+      oneOf:
+        - type: string
+        - type: array
+          items:
+            type: string
+    autonomy:
+      $ref: "#/$defs/autonomy_level"
+      default: "L2"
+    required_skills:
+      type: array
+      items:
+        type: string
+      default: []
+    optional_skills:
+      type: array
+      items:
+        type: string
+      default: []
+
+  # Paradigm body (Markdown) 规范：
+  # - ## 模式：抽象的工作模式描述
+  # - ## 步骤：该模式的标准操作流程
+  # - ## 判断依据：何时应用该模式
+  # - ## 反例：不应使用该模式的场景
+
+
+---
+
+# ============================================================
+# 8. 入口文件 AGENTS.md
+# ============================================================
+
+# AGENTS.md 不需要 schema，它是一个简单的 Markdown 文件，
+# 职责是：
+# 1. 作为 AI 工具的入口发现点
+# 2. 指向 .kqforge/config.yaml
+# 3. 声明当前激活的模式/工作流
+#
+# 模板：
+#
+# ```markdown
+# # Project Agent Configuration
+#
+# This project uses [KQ-Forge](https://github.com/user/kq-forge) for AI collaboration.
+#
+# ## Configuration
+#
+# All agent configuration is managed in `.kqforge/config.yaml`.
+#
+# ## Current State
+#
+# - Autonomy: L1
+# - Workflow: feature
+# - Quality: triangle
+#
+# ## Quick Commands
+#
+# - `/workflow <name>` — 切换工作流
+# - `/autonomy <level>` — 切换自动化等级
+# - `/remember <content>` — 记录记忆
+# - `/evolve <name>` — 提炼范式
+# - `/status` — 查看当前状态
+# ```
+
+
+---
+
+# ============================================================
+# 附录 A：配置优先级（从高到低）
+# ============================================================
+#
+# 1. Workflow step 级别（step.autonomy, step.round_cap）
+# 2. Overrides 路径匹配（窄 glob > 宽 glob）
+# 3. Overrides task 标签匹配
+# 4. Agent 级别（agent.autonomy）
+# 5. 全局默认值（defaults.autonomy, defaults.round_cap）
+#
+# 示例：
+# - defaults.autonomy = L1
+# - agent implementer.autonomy = L2
+# - overrides: tests/** → L3
+# - workflow step: implementer.autonomy = L0
+#
+# 当 implementer 在 feature workflow 中处理 tests/ 下的文件时：
+# → workflow step 优先 → L0
+
+
+---
+
+# ============================================================
+# 附录 B：文件发现规则
+# ============================================================
+#
+# KQ-Forge 使用自动发现 + 黑名单机制：
+#
+# 1. 扫描 .kqforge/agents/*.md → 注册所有 Agent
+# 2. 扫描 .kqforge/skills/*.md → 注册所有 Skill
+# 3. 扫描 .kqforge/workflows/*.md → 注册所有 Workflow
+# 4. 扫描 .kqforge/paradigms/*.md → 注册所有 Paradigm（作为 Agent）
+# 5. 检查 config.yaml 的 disabled 列表 → 排除黑名单项
+#
+# 文件名（不含扩展名）即为该资源的 name。
+# 如果 frontmatter 中的 name 与文件名不一致，以 frontmatter 为准并发出警告。
+
+
+---
+
+# ============================================================
+# 附录 C：配置示例（完整）
+# ============================================================
+#
+# .kqforge/config.yaml:
+#
+# ```yaml
+# version: 1
+#
+# project:
+#   name: my-saas-app
+#   description: 基于 Next.js 的 SaaS 应用
+#
+# defaults:
+#   autonomy: L1
+#   workflow: feature
+#   round_cap: 3
+#   reflect_on_error: true
+#   language: zh-CN
+#
+# platforms:
+#   - claude-code
+#   - opencode
+#
+# memory:
+#   auto_capture: true
+#   max_entries_per_file: 50
+#   categories: [rules, facts, lessons]
+#
+# quality:
+#   model: triangle
+#   acceptance_criteria: true
+#
+# disabled:
+#   agents: []
+#   skills: []
+#   workflows: []
+#
+# overrides:
+#   - match: "tests/**"
+#     autonomy: L3
+#     quality: linear
+#
+#   - match: "src/auth/**"
+#     autonomy: L0
+#     quality: triangle
+#     round_cap: 5
+#
+#   - match: "*.config.*"
+#     autonomy: L2
+#
+#   - task: formatting
+#     autonomy: L3
+#     quality: none
+#
+#   - task: architecture
+#     autonomy: L0
+#     round_cap: 5
+# ```
