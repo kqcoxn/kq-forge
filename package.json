@@ -13,8 +13,7 @@
   "scripts": {
     "build": "pnpm -r run build",
     "clean": "pnpm -r run clean",
-    "typecheck": "pnpm -r run typecheck",
-    "prepare": "pnpm run build"
+    "typecheck": "pnpm -r run typecheck"
   },
   "dependencies": {
     "citty": "^0.1.6",

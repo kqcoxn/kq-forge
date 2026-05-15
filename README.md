@@ -191,7 +191,7 @@ memory:
 
 ```bash
 # 在项目根目录初始化（指定平台）
-npx github:kqcoxn/kq-forge init --platform claude-code
+npx github:kqcoxn/kq-forge init --platform opencode
 
 # 多平台
 npx github:kqcoxn/kq-forge init --platform claude-code --platform opencode
