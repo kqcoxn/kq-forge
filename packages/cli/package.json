@@ -1,0 +1,31 @@
+{
+  "name": "@kq-forge/cli",
+  "version": "0.1.0",
+  "description": "KQ-Forge CLI 入口",
+  "type": "module",
+  "bin": {
+    "kq-forge": "./dist/index.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "clean": "rimraf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kq-forge/core": "workspace:*",
+    "@kq-forge/platform-claude-code": "workspace:*",
+    "@kq-forge/platform-codex": "workspace:*",
+    "@kq-forge/platform-opencode": "workspace:*",
+    "citty": "^0.1.6",
+    "consola": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "rimraf": "^6.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.0"
+  }
+}

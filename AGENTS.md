@@ -1,7 +1,5 @@
 # AGENTS.md
 
-> KQ-Forge 项目协作入口。本文件定义项目级协作规则，并索引所有可用的 Agents、Skills 和 Workflows。
-
 ---
 
 ## 项目协作规则
@@ -16,12 +14,12 @@
 
 ### Autonomy Level 约定
 
-| 等级 | 模式 | 人类角色 | 适用场景 |
-|------|------|---------|---------|
-| **L0** | 全手动 | Agent 建议，人执行 | 高风险变更、架构决策 |
-| **L1** | 半自动 | Agent 执行，关键节点等人确认 | 常规功能开发 |
-| **L2** | 监督自动 | Agent 全自动，人异步 review | 批量任务、重构 |
-| **L3** | 全自动 | Agent 自主完成，仅失败时通知 | 机械性任务、格式化 |
+| 等级   | 模式     | 人类角色                     | 适用场景             |
+| ------ | -------- | ---------------------------- | -------------------- |
+| **L0** | 全手动   | Agent 建议，人执行           | 高风险变更、架构决策 |
+| **L1** | 半自动   | Agent 执行，关键节点等人确认 | 常规功能开发         |
+| **L2** | 监督自动 | Agent 全自动，人异步 review  | 批量任务、重构       |
+| **L3** | 全自动   | Agent 自主完成，仅失败时通知 | 机械性任务、格式化   |
 
 默认等级：**L1**（可在 `.kqforge/config.yaml` 中修改）。
 
@@ -45,25 +43,18 @@
 
 ## 自定义规则
 
-<!-- 
-在此添加你的项目特定规则。示例：
-
-- 本项目使用 pnpm 作为包管理器
-- API 响应统一使用 envelope 格式：{ data, error, meta }
-- 所有数据库变更必须有回滚脚本
-- commit message 使用 conventional commits 格式
--->
+全程使用中文。
 
 ---
 
 ## Agents
 
-| Agent | 职责 | 默认等级 | 文件 |
-|-------|------|---------|------|
-| **lead** | 编排者：需求探索、方案设计、任务分解、委派调度、反思沉淀 | L1 | [agents/lead.md](agents/lead.md) |
-| **implementer** | 执行者：按计划实现代码，自检后交付 | L1 | [agents/implementer.md](agents/implementer.md) |
-| **reviewer** | 审查者：只读 review，输出结构化审查报告 | L1 | [agents/reviewer.md](agents/reviewer.md) |
-| **judge** | 裁决者：独立第三方，PASS/FAIL/PARTIAL 裁决 | L1 | [agents/judge.md](agents/judge.md) |
+| Agent           | 职责                                                     | 默认等级 | 文件                                           |
+| --------------- | -------------------------------------------------------- | -------- | ---------------------------------------------- |
+| **lead**        | 编排者：需求探索、方案设计、任务分解、委派调度、反思沉淀 | L1       | [agents/lead.md](agents/lead.md)               |
+| **implementer** | 执行者：按计划实现代码，自检后交付                       | L1       | [agents/implementer.md](agents/implementer.md) |
+| **reviewer**    | 审查者：只读 review，输出结构化审查报告                  | L1       | [agents/reviewer.md](agents/reviewer.md)       |
+| **judge**       | 裁决者：独立第三方，PASS/FAIL/PARTIAL 裁决               | L1       | [agents/judge.md](agents/judge.md)             |
 
 ---
 
@@ -71,55 +62,55 @@
 
 ### 核心 Skills（base 包默认包含）
 
-| Skill | 类型 | 说明 | 路径 |
-|-------|------|------|------|
-| design | capability | 任务分解与方案设计方法论 | [skills/design/](skills/design/SKILL.md) |
-| implement | capability | 编码实现规范与自检清单 | [skills/implement/](skills/implement/SKILL.md) |
-| review | capability | 代码审查方法论与报告格式 | [skills/review/](skills/review/SKILL.md) |
-| debug | capability | 系统化调试方法论 | [skills/debug/](skills/debug/SKILL.md) |
-| reflect | capability | 反思沉淀与记忆管理 | [skills/reflect/](skills/reflect/SKILL.md) |
+| Skill     | 类型       | 说明                     | 路径                                           |
+| --------- | ---------- | ------------------------ | ---------------------------------------------- |
+| design    | capability | 任务分解与方案设计方法论 | [skills/design/](skills/design/SKILL.md)       |
+| implement | capability | 编码实现规范与自检清单   | [skills/implement/](skills/implement/SKILL.md) |
+| review    | capability | 代码审查方法论与报告格式 | [skills/review/](skills/review/SKILL.md)       |
+| debug     | capability | 系统化调试方法论         | [skills/debug/](skills/debug/SKILL.md)         |
+| reflect   | capability | 反思沉淀与记忆管理       | [skills/reflect/](skills/reflect/SKILL.md)     |
 
 ### 通用约束 Skills
 
-| Skill | 类型 | 说明 | 路径 |
-|-------|------|------|------|
-| code-hygiene | constraint | AI 代码异味识别与预防 | [skills/code-hygiene/](skills/code-hygiene/SKILL.md) |
-| git-conventions | constraint | Git 提交与分支规范 | [skills/git-conventions/](skills/git-conventions/SKILL.md) |
-| security-check | constraint | 基础安全检查清单 | [skills/security-check/](skills/security-check/SKILL.md) |
-| test-first | constraint | 测试优先约束 | [skills/test-first/](skills/test-first/SKILL.md) |
-| verify-before-done | constraint | 完成前验证约束 | [skills/verify-before-done/](skills/verify-before-done/SKILL.md) |
+| Skill              | 类型       | 说明                  | 路径                                                             |
+| ------------------ | ---------- | --------------------- | ---------------------------------------------------------------- |
+| code-hygiene       | constraint | AI 代码异味识别与预防 | [skills/code-hygiene/](skills/code-hygiene/SKILL.md)             |
+| git-conventions    | constraint | Git 提交与分支规范    | [skills/git-conventions/](skills/git-conventions/SKILL.md)       |
+| security-check     | constraint | 基础安全检查清单      | [skills/security-check/](skills/security-check/SKILL.md)         |
+| test-first         | constraint | 测试优先约束          | [skills/test-first/](skills/test-first/SKILL.md)                 |
+| verify-before-done | constraint | 完成前验证约束        | [skills/verify-before-done/](skills/verify-before-done/SKILL.md) |
 
 ### 领域 Skills
 
-| Skill | 说明 | 子文件 | 路径 |
-|-------|------|--------|------|
-| typescript | TypeScript/JavaScript 全栈 | 7 | [skills/typescript/](skills/typescript/SKILL.md) |
-| python | Python 全栈（Django/FastAPI） | 5 | [skills/python/](skills/python/SKILL.md) |
-| golang | Go 语言模式与测试 | 2 | [skills/golang/](skills/golang/SKILL.md) |
-| rust | Rust 模式与测试 | 2 | [skills/rust/](skills/rust/SKILL.md) |
-| java | Java/Kotlin + Spring Boot | 7 | [skills/java/](skills/java/SKILL.md) |
-| cpp | 现代 C++ 规范与测试 | 2 | [skills/cpp/](skills/cpp/SKILL.md) |
-| dotnet | .NET/C#/F# 模式与测试 | 3 | [skills/dotnet/](skills/dotnet/SKILL.md) |
-| mobile | Android/iOS/跨平台 | 4 | [skills/mobile/](skills/mobile/SKILL.md) |
-| database | 数据库迁移、SQL、ORM、缓存 | 5 | [skills/database/](skills/database/SKILL.md) |
-| api | API 设计、错误处理、架构 | 3 | [skills/api/](skills/api/SKILL.md) |
-| devops | CI/CD、Docker、部署策略 | 3 | [skills/devops/](skills/devops/SKILL.md) |
-| frontend-ui | 无障碍、设计系统、响应式 | 3 | [skills/frontend-ui/](skills/frontend-ui/SKILL.md) |
-| ai-ml | LLM 管道、ML 工作流、PyTorch | 4 | [skills/ai-ml/](skills/ai-ml/SKILL.md) |
-| performance | 基准测试与性能优化 | 2 | [skills/performance/](skills/performance/SKILL.md) |
-| security-advanced | 漏洞挖掘与安全扫描 | 2 | [skills/security-advanced/](skills/security-advanced/SKILL.md) |
-| documentation | 代码导览与新人上手 | 2 | [skills/documentation/](skills/documentation/SKILL.md) |
-| workflow-advanced | ADR 与搜索优先策略 | 2 | [skills/workflow-advanced/](skills/workflow-advanced/SKILL.md) |
+| Skill             | 说明                          | 子文件 | 路径                                                           |
+| ----------------- | ----------------------------- | ------ | -------------------------------------------------------------- |
+| typescript        | TypeScript/JavaScript 全栈    | 7      | [skills/typescript/](skills/typescript/SKILL.md)               |
+| python            | Python 全栈（Django/FastAPI） | 5      | [skills/python/](skills/python/SKILL.md)                       |
+| golang            | Go 语言模式与测试             | 2      | [skills/golang/](skills/golang/SKILL.md)                       |
+| rust              | Rust 模式与测试               | 2      | [skills/rust/](skills/rust/SKILL.md)                           |
+| java              | Java/Kotlin + Spring Boot     | 7      | [skills/java/](skills/java/SKILL.md)                           |
+| cpp               | 现代 C++ 规范与测试           | 2      | [skills/cpp/](skills/cpp/SKILL.md)                             |
+| dotnet            | .NET/C#/F# 模式与测试         | 3      | [skills/dotnet/](skills/dotnet/SKILL.md)                       |
+| mobile            | Android/iOS/跨平台            | 4      | [skills/mobile/](skills/mobile/SKILL.md)                       |
+| database          | 数据库迁移、SQL、ORM、缓存    | 5      | [skills/database/](skills/database/SKILL.md)                   |
+| api               | API 设计、错误处理、架构      | 3      | [skills/api/](skills/api/SKILL.md)                             |
+| devops            | CI/CD、Docker、部署策略       | 3      | [skills/devops/](skills/devops/SKILL.md)                       |
+| frontend-ui       | 无障碍、设计系统、响应式      | 3      | [skills/frontend-ui/](skills/frontend-ui/SKILL.md)             |
+| ai-ml             | LLM 管道、ML 工作流、PyTorch  | 4      | [skills/ai-ml/](skills/ai-ml/SKILL.md)                         |
+| performance       | 基准测试与性能优化            | 2      | [skills/performance/](skills/performance/SKILL.md)             |
+| security-advanced | 漏洞挖掘与安全扫描            | 2      | [skills/security-advanced/](skills/security-advanced/SKILL.md) |
+| documentation     | 代码导览与新人上手            | 2      | [skills/documentation/](skills/documentation/SKILL.md)         |
+| workflow-advanced | ADR 与搜索优先策略            | 2      | [skills/workflow-advanced/](skills/workflow-advanced/SKILL.md) |
 
 ---
 
 ## Workflows
 
-| Workflow | 说明 | 适用场景 | 文件 |
-|---------|------|---------|------|
-| **feature** | 完整功能开发流（探索→计划→实现→审查→裁决→反思） | 新功能、较大变更 | [workflows/feature.md](workflows/feature.md) |
-| **bugfix** | 轻量缺陷修复流（诊断→修复→验证→反思） | Bug 修复、小改动 | [workflows/bugfix.md](workflows/bugfix.md) |
-| **longmarch** | 大型项目里程碑流（规划→迭代循环→检查点） | 跨多天的大型任务 | [workflows/longmarch.md](workflows/longmarch.md) |
+| Workflow      | 说明                                            | 适用场景         | 文件                                             |
+| ------------- | ----------------------------------------------- | ---------------- | ------------------------------------------------ |
+| **feature**   | 完整功能开发流（探索→计划→实现→审查→裁决→反思） | 新功能、较大变更 | [workflows/feature.md](workflows/feature.md)     |
+| **bugfix**    | 轻量缺陷修复流（诊断→修复→验证→反思）           | Bug 修复、小改动 | [workflows/bugfix.md](workflows/bugfix.md)       |
+| **longmarch** | 大型项目里程碑流（规划→迭代循环→检查点）        | 跨多天的大型任务 | [workflows/longmarch.md](workflows/longmarch.md) |
 
 ---
 
