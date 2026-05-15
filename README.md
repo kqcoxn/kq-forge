@@ -78,34 +78,41 @@ Writer（执行者）→ Reviewer（审查者）→ Judge（裁决者）
 
 ### 文件结构
 
+安装后，项目目录结构如下：
+
 ```
 your-project/
-├── .kqforge/                    # KQ-Forge 工作目录
+├── agents/                      # Agent 定义
+│   ├── lead.md                  # 主编排 Agent
+│   ├── implementer.md           # 实现者
+│   ├── reviewer.md              # 审查者
+│   ├── judge.md                 # 裁决者
+│   └── {custom}.md              # 项目自定义 Agent
+├── skills/                      # 技能定义（文件夹为单位）
+│   ├── design/
+│   │   └── SKILL.md             # 入口文件
+│   ├── implement/
+│   │   └── SKILL.md
+│   ├── typescript/              # 多文件技能集
+│   │   ├── SKILL.md             # 入口概述 + 引用子文件
+│   │   ├── coding-standards.md
+│   │   └── ...
+│   └── {custom}/
+│       └── SKILL.md
+├── workflows/                   # 工作流定义
+│   ├── feature.md               # 功能开发流
+│   ├── bugfix.md                # 缺陷修复流
+│   ├── longmarch.md             # 大型项目里程碑流
+│   └── {custom}.md
+├── .kqforge/                    # KQ-Forge 运行时目录
 │   ├── config.yaml              # 核心配置（人机模式、默认工作流等）
-│   ├── agents/                  # Agent 定义
-│   │   ├── lead.md              # 主编排 Agent
-│   │   ├── implementer.md       # 实现者
-│   │   ├── reviewer.md          # 审查者
-│   │   ├── judge.md             # 裁决者
-│   │   └── {custom}.md          # 项目自定义 Agent
-│   ├── skills/                  # 技能定义
-│   │   ├── design.md
-│   │   ├── implement.md
-│   │   ├── review.md
-│   │   ├── debug.md
-│   │   └── {custom}.md
-│   ├── workflows/               # 工作流定义（可切换）
-│   │   ├── feature.md           # 功能开发流
-│   │   ├── bugfix.md            # 缺陷修复流
-│   │   ├── refactor.md          # 重构流
-│   │   └── {custom}.md
 │   ├── memory/                  # 记忆存储
 │   │   ├── rules.md             # 项目规则与约束
 │   │   ├── facts.md             # 事实记录
 │   │   └── lessons.md           # 教训沉淀
 │   └── paradigms/               # 范式（提炼后的专家 Agent）
 │       └── {name}.md
-├── AGENTS.md                    # 入口文件（指向 .kqforge/config.yaml）
+├── AGENTS.md                    # 入口文件（协作规则 + 索引）
 └── ...                          # 项目其他文件
 ```
 
@@ -184,42 +191,39 @@ memory:
 
 ```bash
 # 在项目根目录初始化（指定平台）
-npx kq-forge init --platform claude-code
+npx github:kqcoxn/kq-forge init --platform claude-code
 
 # 多平台
-npx kq-forge init --platform claude-code --platform opencode
+npx github:kqcoxn/kq-forge init --platform claude-code --platform opencode
 
 # 后续添加平台
-npx kq-forge add-platform codex
+npx github:kqcoxn/kq-forge add-platform codex
 ```
 
 ### 安装内容
 
-`init` 命令只安装核心 base 包，包含：
+`init` 命令将以下文件脚手架到项目目录：
 
-- 基础配置文件（`config.yaml`）
 - 入口文件（`AGENTS.md`）
-- 核心 Agent 定义（lead / implementer / reviewer / judge）
-- 核心 Skills（design / implement / review / debug / reflect）
-- 默认工作流（feature / bugfix）
+- 核心 Agent 定义（`agents/` — lead / implementer / reviewer / judge）
+- 核心 Skills（`skills/` — design / implement / review / debug / reflect + 通用约束）
+- 默认工作流（`workflows/` — feature / bugfix / longmarch）
+- 运行时配置（`.kqforge/config.yaml`）
 
 ### 添加场景包
 
 ```bash
 # 添加前端开发场景包
-npx kq-forge add frontend
+npx github:kqcoxn/kq-forge add frontend
 
 # 添加 API 开发场景包
-npx kq-forge add api
+npx github:kqcoxn/kq-forge add api
 
 # 添加数据管道场景包
-npx kq-forge add data-pipeline
-
-# 查看可用场景包
-npx kq-forge list-packages
+npx github:kqcoxn/kq-forge add data-pipeline
 ```
 
-场景包会添加对应的 Agent、Skills 和 Workflows，但不会覆盖已有配置。
+场景包会添加对应的 Skills 和 Workflows，但不会覆盖已有配置。
 
 ---
 
@@ -251,7 +255,7 @@ npx kq-forge list-packages
 
 ### 自定义 Agent
 
-在 `.kqforge/agents/` 下创建新文件即可：
+在 `agents/` 下创建新文件即可：
 
 ```markdown
 ---
@@ -270,7 +274,7 @@ optional_skills:
 
 ### 自定义工作流
 
-在 `.kqforge/workflows/` 下创建新文件：
+在 `workflows/` 下创建新文件：
 
 ```markdown
 ---
@@ -292,13 +296,21 @@ steps:
 
 ### 自定义 Skill
 
-在 `.kqforge/skills/` 下创建新文件：
+在 `skills/` 下创建文件夹，入口为 `SKILL.md`：
+
+```
+skills/
+└── api-conventions/
+    └── SKILL.md
+```
+
+SKILL.md 格式：
 
 ```markdown
 ---
 name: api-conventions
 description: 本项目的 API 设计约定
-type: constraint                  # constraint | capability | workflow
+type: constraint
 ---
 
 ## 规则
@@ -330,7 +342,7 @@ type: constraint                  # constraint | capability | workflow
 |------|----------|-------------|-----|----------|---------|
 | **哲学** | 因地制宜 | 纪律至上 | 全覆盖 | 运行时基座 | 规格对齐 |
 | **人机模式** | L0-L3 可切换 | 固定约束 | 固定约束 | 固定 | 固定 |
-| **形态** | CLI + 项目级配置 | 纯文档插件 | 配置集 | 独立服务 | CLI 工具 |
+| **形态** | Scaffolding + 项目级配置 | 纯文档插件 | 配置集 | 独立服务 | CLI 工具 |
 | **质量机制** | 对抗三角 | TDD 铁律 | Hook 门控 | 中间件链 | 三维验证 |
 | **知识管理** | 记忆 + 范式 | 无 | 本能进化 | 持久化记忆 | Delta Specs |
 | **扩展性** | 必须扩展 | 插件市场 | 技能库 | 技能 + MCP | Schema 定制 |
@@ -340,8 +352,9 @@ type: constraint                  # constraint | capability | workflow
 
 ## Roadmap
 
-- [ ] Core：base 包实现（config / agents / skills / workflows 骨架）
-- [ ] CLI：`init` / `add-platform` / `add` 命令
+- [x] Core：agents / skills / workflows 模板定义
+- [x] Config Schema：`.kqforge/config.yaml` 完整 schema
+- [ ] Scaffolding：`npx github:kqcoxn/kq-forge init` 脚本实现
 - [ ] Platform：Claude Code 适配器
 - [ ] Platform：OpenCode 适配器
 - [ ] Platform：Codex CLI 适配器
@@ -349,7 +362,6 @@ type: constraint                  # constraint | capability | workflow
 - [ ] Package：api 场景包
 - [ ] Memory：记忆捕获与注入机制
 - [ ] Paradigm：范式提炼命令
-- [ ] Workflow：对抗三角执行引擎
 
 ---
 
