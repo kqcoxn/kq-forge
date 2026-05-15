@@ -34,6 +34,10 @@ import { join as join5 } from "path";
 import { readdir as readdir2, readFile as readFile3 } from "fs/promises";
 import { existsSync as existsSync6 } from "fs";
 import { join as join6 } from "path";
+import { readdir as readdir3, readFile as readFile4, writeFile as writeFile3 } from "fs/promises";
+import { existsSync as existsSync7 } from "fs";
+import { join as join7 } from "path";
+import matter2 from "gray-matter";
 var AutonomyLevel = z.enum(["L0", "L1", "L2", "L3"]);
 var PlatformName = z.enum(["claude-code", "opencode", "codex"]);
 var QualityModel = z.enum(["triangle", "linear", "none"]);
@@ -405,13 +409,11 @@ async function initProject(options) {
     );
   }
   await mkdir(join3(configDir, "memory"), { recursive: true });
-  await mkdir(join3(configDir, "paradigms"), { recursive: true });
   await mkdir(join3(configDir, "platforms"), { recursive: true });
   await mkdir(join3(configDir, "agents"), { recursive: true });
   await mkdir(join3(configDir, "skills"), { recursive: true });
   await mkdir(join3(configDir, "workflows"), { recursive: true });
   await writeFile(join3(configDir, "memory", ".gitkeep"), "");
-  await writeFile(join3(configDir, "paradigms", ".gitkeep"), "");
   const configPath = join3(configDir, "config.yaml");
   if (!existsSync3(configPath) || force) {
     const config = {
@@ -703,8 +705,8 @@ async function loadAllSkills(dir) {
           const subFiles = [];
           for (const sub of subEntries) {
             if (sub.isFile() && sub.name.endsWith(".md") && sub.name !== "SKILL.md") {
-              const { readFile: readFile4 } = await import("fs/promises");
-              const content = await readFile4(join6(subDir, sub.name), "utf-8");
+              const { readFile: readFile5 } = await import("fs/promises");
+              const content = await readFile5(join6(subDir, sub.name), "utf-8");
               subFiles.push({ name: sub.name, content });
             }
           }
@@ -741,51 +743,95 @@ function renderTemplate(template, vars) {
   }
   return result;
 }
+var ENTRY_PATTERN = /^- \[\d{4}-\d{2}-\d{2}\] .+$/;
+async function pruneMemories(projectRoot, maxEntries) {
+  const memoryDir = join7(projectRoot, ".kqforge", "memory");
+  const result = { pruned: [], totalRemoved: 0 };
+  if (!existsSync7(memoryDir)) {
+    return result;
+  }
+  const entries = await readdir3(memoryDir, { withFileTypes: true });
+  const mdFiles = entries.filter(
+    (e) => e.isFile() && e.name.endsWith(".md")
+  );
+  for (const file of mdFiles) {
+    const filePath = join7(memoryDir, file.name);
+    const raw = await readFile4(filePath, "utf-8");
+    const { data: frontmatter, content } = matter2(raw);
+    const lines = content.split("\n");
+    const entryLines = [];
+    const nonEntryLines = [];
+    for (const line of lines) {
+      if (ENTRY_PATTERN.test(line.trim())) {
+        entryLines.push(line);
+      } else {
+        nonEntryLines.push(line);
+      }
+    }
+    if (entryLines.length <= maxEntries) {
+      continue;
+    }
+    const removed = entryLines.length - maxEntries;
+    const keptEntries = entryLines.slice(removed);
+    const newContent = [...nonEntryLines.filter((l) => l.trim() !== ""), ...keptEntries].join("\n") + "\n";
+    const hasFrontmatter = Object.keys(frontmatter).length > 0;
+    let output;
+    if (hasFrontmatter) {
+      output = matter2.stringify(newContent, frontmatter);
+    } else {
+      output = newContent;
+    }
+    await writeFile3(filePath, output, "utf-8");
+    result.pruned.push({ file: file.name, removed });
+    result.totalRemoved += removed;
+  }
+  return result;
+}
 
 // ../platform-opencode/dist/index.js
-import { writeFile as writeFile3, mkdir as mkdir4 } from "fs/promises";
-import { join as join7 } from "path";
+import { writeFile as writeFile4, mkdir as mkdir4 } from "fs/promises";
+import { join as join8 } from "path";
 var OpenCodeAdapter = class {
   name = "opencode";
   async sync(context) {
     const { projectRoot, agents, skills, workflows } = context;
     const result = { files: [], warnings: [] };
-    const opencodeDir = join7(projectRoot, ".opencode");
-    await mkdir4(join7(opencodeDir, "agents"), { recursive: true });
-    await mkdir4(join7(opencodeDir, "skills"), { recursive: true });
-    await mkdir4(join7(opencodeDir, "workflows"), { recursive: true });
+    const opencodeDir = join8(projectRoot, ".opencode");
+    await mkdir4(join8(opencodeDir, "agents"), { recursive: true });
+    await mkdir4(join8(opencodeDir, "skills"), { recursive: true });
+    await mkdir4(join8(opencodeDir, "workflows"), { recursive: true });
     const agentsMdContent = this.renderEntryFile(context);
-    const agentsMdPath = join7(projectRoot, "AGENTS.md");
-    await writeFile3(agentsMdPath, agentsMdContent, "utf-8");
+    const agentsMdPath = join8(projectRoot, "AGENTS.md");
+    await writeFile4(agentsMdPath, agentsMdContent, "utf-8");
     result.files.push({ path: "AGENTS.md", action: "created" });
     for (const agent of agents) {
       const content = this.transformAgent(agent);
-      const filePath = join7(opencodeDir, "agents", `${agent.frontmatter.name}.md`);
-      await writeFile3(filePath, content, "utf-8");
+      const filePath = join8(opencodeDir, "agents", `${agent.frontmatter.name}.md`);
+      await writeFile4(filePath, content, "utf-8");
       result.files.push({
         path: `.opencode/agents/${agent.frontmatter.name}.md`,
         action: "created"
       });
     }
     for (const skill of skills) {
-      const skillDir = join7(opencodeDir, "skills", skill.frontmatter.name);
+      const skillDir = join8(opencodeDir, "skills", skill.frontmatter.name);
       await mkdir4(skillDir, { recursive: true });
       const content = this.transformSkill(skill);
-      await writeFile3(join7(skillDir, "SKILL.md"), content, "utf-8");
+      await writeFile4(join8(skillDir, "SKILL.md"), content, "utf-8");
       result.files.push({
         path: `.opencode/skills/${skill.frontmatter.name}/SKILL.md`,
         action: "created"
       });
       if (skill.subFiles) {
         for (const sub of skill.subFiles) {
-          await writeFile3(join7(skillDir, sub.name), sub.content, "utf-8");
+          await writeFile4(join8(skillDir, sub.name), sub.content, "utf-8");
         }
       }
     }
     for (const wf of workflows) {
       const content = this.transformWorkflow(wf);
-      const filePath = join7(opencodeDir, "workflows", `${wf.frontmatter.name}.md`);
-      await writeFile3(filePath, content, "utf-8");
+      const filePath = join8(opencodeDir, "workflows", `${wf.frontmatter.name}.md`);
+      await writeFile4(filePath, content, "utf-8");
       result.files.push({
         path: `.opencode/workflows/${wf.frontmatter.name}.md`,
         action: "created"
@@ -958,22 +1004,22 @@ var OpenCodeAdapter = class {
 };
 
 // ../platform-claude-code/dist/index.js
-import { writeFile as writeFile4, mkdir as mkdir5 } from "fs/promises";
-import { join as join8 } from "path";
+import { writeFile as writeFile5, mkdir as mkdir5 } from "fs/promises";
+import { join as join9 } from "path";
 var ClaudeCodeAdapter = class {
   name = "claude-code";
   async sync(context) {
     const { projectRoot, agents, skills, workflows } = context;
     const result = { files: [], warnings: [] };
-    const claudeDir = join8(projectRoot, ".claude");
-    await mkdir5(join8(claudeDir, "agents"), { recursive: true });
-    await mkdir5(join8(claudeDir, "skills"), { recursive: true });
-    await mkdir5(join8(claudeDir, "workflows"), { recursive: true });
+    const claudeDir = join9(projectRoot, ".claude");
+    await mkdir5(join9(claudeDir, "agents"), { recursive: true });
+    await mkdir5(join9(claudeDir, "skills"), { recursive: true });
+    await mkdir5(join9(claudeDir, "workflows"), { recursive: true });
     const claudeMdContent = this.renderEntryFile(context);
-    const claudeMdPath = join8(projectRoot, "CLAUDE.md");
-    await writeFile4(claudeMdPath, claudeMdContent, "utf-8");
+    const claudeMdPath = join9(projectRoot, "CLAUDE.md");
+    await writeFile5(claudeMdPath, claudeMdContent, "utf-8");
     result.files.push({ path: "CLAUDE.md", action: "created" });
-    const settingsPath = join8(claudeDir, "settings.json");
+    const settingsPath = join9(claudeDir, "settings.json");
     const settings = {
       permissions: {
         allow: [
@@ -990,37 +1036,37 @@ var ClaudeCodeAdapter = class {
         ]
       }
     };
-    await writeFile4(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
+    await writeFile5(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
     result.files.push({ path: ".claude/settings.json", action: "created" });
     for (const agent of agents) {
       if (agent.frontmatter.name === "lead") continue;
       const content = this.transformAgent(agent);
-      const filePath = join8(claudeDir, "agents", `${agent.frontmatter.name}.md`);
-      await writeFile4(filePath, content, "utf-8");
+      const filePath = join9(claudeDir, "agents", `${agent.frontmatter.name}.md`);
+      await writeFile5(filePath, content, "utf-8");
       result.files.push({
         path: `.claude/agents/${agent.frontmatter.name}.md`,
         action: "created"
       });
     }
     for (const skill of skills) {
-      const skillDir = join8(claudeDir, "skills", skill.frontmatter.name);
+      const skillDir = join9(claudeDir, "skills", skill.frontmatter.name);
       await mkdir5(skillDir, { recursive: true });
       const content = this.transformSkill(skill);
-      await writeFile4(join8(skillDir, "SKILL.md"), content, "utf-8");
+      await writeFile5(join9(skillDir, "SKILL.md"), content, "utf-8");
       result.files.push({
         path: `.claude/skills/${skill.frontmatter.name}/SKILL.md`,
         action: "created"
       });
       if (skill.subFiles) {
         for (const sub of skill.subFiles) {
-          await writeFile4(join8(skillDir, sub.name), sub.content, "utf-8");
+          await writeFile5(join9(skillDir, sub.name), sub.content, "utf-8");
         }
       }
     }
     for (const wf of workflows) {
       const content = this.transformWorkflow(wf);
-      const filePath = join8(claudeDir, "workflows", `${wf.frontmatter.name}.md`);
-      await writeFile4(filePath, content, "utf-8");
+      const filePath = join9(claudeDir, "workflows", `${wf.frontmatter.name}.md`);
+      await writeFile5(filePath, content, "utf-8");
       result.files.push({
         path: `.claude/workflows/${wf.frontmatter.name}.md`,
         action: "created"
@@ -1186,16 +1232,16 @@ var ClaudeCodeAdapter = class {
 };
 
 // ../platform-codex/dist/index.js
-import { writeFile as writeFile5 } from "fs/promises";
-import { join as join9 } from "path";
+import { writeFile as writeFile6 } from "fs/promises";
+import { join as join10 } from "path";
 var CodexAdapter = class {
   name = "codex";
   async sync(context) {
     const { projectRoot } = context;
     const result = { files: [], warnings: [] };
     const content = this.renderEntryFile(context);
-    const filePath = join9(projectRoot, "AGENTS.md");
-    await writeFile5(filePath, content, "utf-8");
+    const filePath = join10(projectRoot, "AGENTS.md");
+    await writeFile6(filePath, content, "utf-8");
     result.files.push({ path: "AGENTS.md", action: "created" });
     return result;
   }
@@ -1336,6 +1382,11 @@ function getAdapter(platform) {
 async function syncPlatforms(projectRoot) {
   const context = await loadProjectContext(projectRoot);
   const allResult = { platforms: [], warnings: [] };
+  const maxEntries = context.config.memory.max_entries_per_file;
+  const pruneResult = await pruneMemories(projectRoot, maxEntries);
+  if (pruneResult.totalRemoved > 0) {
+    allResult.memoryPruned = pruneResult.pruned;
+  }
   if (context.config.platforms.length === 0) {
     allResult.warnings.push("\u672A\u914D\u7F6E\u4EFB\u4F55\u5E73\u53F0\uFF0C\u8DF3\u8FC7\u540C\u6B65\u3002");
     return allResult;
@@ -1585,9 +1636,9 @@ var listPackagesCommand = defineCommand4({
 import { defineCommand as defineCommand5 } from "citty";
 import { consola as consola5 } from "consola";
 import { resolve as resolve5 } from "path";
-import { readdir as readdir3 } from "fs/promises";
-import { existsSync as existsSync7 } from "fs";
-import { join as join10 } from "path";
+import { readdir as readdir4 } from "fs/promises";
+import { existsSync as existsSync8 } from "fs";
+import { join as join11 } from "path";
 var statusCommand = defineCommand5({
   meta: {
     name: "status",
@@ -1601,10 +1652,10 @@ var statusCommand = defineCommand5({
     }
     try {
       const config = await loadConfig(targetDir);
-      const kqDir = join10(targetDir, ".kqforge");
-      const agentCount = await countFiles(join10(kqDir, "agents"), ".md");
-      const workflowCount = await countFiles(join10(kqDir, "workflows"), ".md");
-      const skillCount = await countDirs(join10(kqDir, "skills"));
+      const kqDir = join11(targetDir, ".kqforge");
+      const agentCount = await countFiles(join11(kqDir, "agents"), ".md");
+      const workflowCount = await countFiles(join11(kqDir, "workflows"), ".md");
+      const skillCount = await countDirs(join11(kqDir, "skills"));
       console.log();
       console.log(`  \u9879\u76EE: ${config.project.name}`);
       if (config.project.description) {
@@ -1631,13 +1682,13 @@ var statusCommand = defineCommand5({
   }
 });
 async function countFiles(dir, ext) {
-  if (!existsSync7(dir)) return 0;
-  const files = await readdir3(dir);
+  if (!existsSync8(dir)) return 0;
+  const files = await readdir4(dir);
   return files.filter((f) => f.endsWith(ext)).length;
 }
 async function countDirs(dir) {
-  if (!existsSync7(dir)) return 0;
-  const entries = await readdir3(dir, { withFileTypes: true });
+  if (!existsSync8(dir)) return 0;
+  const entries = await readdir4(dir, { withFileTypes: true });
   return entries.filter((e) => e.isDirectory()).length;
 }
 
@@ -1705,6 +1756,11 @@ var syncCommand = defineCommand7({
     consola7.start("\u540C\u6B65\u5E73\u53F0\u914D\u7F6E...");
     try {
       const result = await syncPlatforms(targetDir);
+      if (result.memoryPruned && result.memoryPruned.length > 0) {
+        for (const { file, removed } of result.memoryPruned) {
+          consola7.info(`[memory] ${file}: \u6E05\u7406\u4E86 ${removed} \u6761\u65E7\u8BB0\u5FC6`);
+        }
+      }
       for (const warning of result.warnings) {
         consola7.warn(warning);
       }

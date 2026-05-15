@@ -1,4 +1,4 @@
-import { loadProjectContext } from "@kq-forge/core";
+import { loadProjectContext, loadConfig, pruneMemories } from "@kq-forge/core";
 import type { PlatformAdapter, SyncResult, PlatformName } from "@kq-forge/core";
 import { OpenCodeAdapter } from "@kq-forge/platform-opencode";
 import { ClaudeCodeAdapter } from "@kq-forge/platform-claude-code";
@@ -23,16 +23,26 @@ function getAdapter(platform: PlatformName): PlatformAdapter {
 export interface SyncAllResult {
   platforms: { name: PlatformName; result: SyncResult }[];
   warnings: string[];
+  /** Memory prune 结果（如果有清理） */
+  memoryPruned?: { file: string; removed: number }[];
 }
 
 /**
  * 同步所有已启用平台的配置文件
  *
  * 从 .kqforge/ 读取源文件，调用各平台适配器生成原生格式文件。
+ * 同步前会执行 memory prune（清理超出 max_entries 的旧条目）。
  */
 export async function syncPlatforms(projectRoot: string): Promise<SyncAllResult> {
   const context = await loadProjectContext(projectRoot);
   const allResult: SyncAllResult = { platforms: [], warnings: [] };
+
+  // Memory prune：清理超限条目
+  const maxEntries = context.config.memory.max_entries_per_file;
+  const pruneResult = await pruneMemories(projectRoot, maxEntries);
+  if (pruneResult.totalRemoved > 0) {
+    allResult.memoryPruned = pruneResult.pruned;
+  }
 
   if (context.config.platforms.length === 0) {
     allResult.warnings.push("未配置任何平台，跳过同步。");

@@ -23,6 +23,13 @@ export const syncCommand = defineCommand({
     try {
       const result = await syncPlatforms(targetDir);
 
+      // 显示 memory prune 结果
+      if (result.memoryPruned && result.memoryPruned.length > 0) {
+        for (const { file, removed } of result.memoryPruned) {
+          consola.info(`[memory] ${file}: 清理了 ${removed} 条旧记忆`);
+        }
+      }
+
       for (const warning of result.warnings) {
         consola.warn(warning);
       }

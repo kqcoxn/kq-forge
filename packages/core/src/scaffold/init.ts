@@ -88,7 +88,6 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
 
   // 1. 创建 .kqforge/ 目录结构（mkdir recursive 对已存在目录无副作用）
   await mkdir(join(configDir, "memory"), { recursive: true });
-  await mkdir(join(configDir, "paradigms"), { recursive: true });
   await mkdir(join(configDir, "platforms"), { recursive: true });
   await mkdir(join(configDir, "agents"), { recursive: true });
   await mkdir(join(configDir, "skills"), { recursive: true });
@@ -96,7 +95,6 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
 
   // 写入 .gitkeep（幂等）
   await writeFile(join(configDir, "memory", ".gitkeep"), "");
-  await writeFile(join(configDir, "paradigms", ".gitkeep"), "");
 
   // 2. 生成 config.yaml（仅在不存在或 force 时写入）
   const configPath = join(configDir, "config.yaml");

@@ -66,11 +66,15 @@ Writer（执行者）→ Reviewer（审查者）→ Judge（裁决者）
 
 | 层级 | 名称 | 形态 | 触发方式 | 作用 |
 |------|------|------|---------|------|
-| **记忆** | Memory | 文件（规则/约束/事实） | 主动沉淀 | 跨会话延续上下文 |
-| **范式** | Paradigm | Agent 配置 | 手动提炼 | 生成专家级子 Agent |
+| **记忆** | Memory | `.kqforge/memory/` 下的 Markdown 文件 | Agent 反思时通过 memory-keeper 写入 | 跨会话延续上下文 |
+| **范式** | Paradigm | 平台 agents 目录中的 `paradigm-*.md` | Agent 识别模式后征得用户同意创建 | 生成专家级子 Agent |
 
 记忆是具体的："这个项目用 pnpm"、"auth 模块上次改动导致了 regression"。
-范式是抽象的："这个项目的 API 总是先写 schema 再写 handler"——提炼后直接生成一个懂这套模式的专家 Agent。
+范式是抽象的："这个项目的 API 总是先写 schema 再写 handler"——提炼后直接成为一个懂这套模式的专家 Agent。
+
+**记忆读取策略**：Agent 任务开始时，`rules.md` 全文读取（硬约束不可遗漏），`facts.md` 和 `lessons.md` 按当前任务关键词搜索匹配条目。
+
+**记忆清理**：`kq-forge sync` 时自动清理超出 `max_entries_per_file` 的旧条目（FIFO），保持记忆文件精简。
 
 ---
 
@@ -90,7 +94,8 @@ your-project/
 │   │   ├── lead.md
 │   │   ├── implementer.md
 │   │   ├── reviewer.md
-│   │   └── judge.md
+│   │   ├── judge.md
+│   │   └── memory-keeper.md
 │   ├── skills/                      # Skill 定义
 │   │   ├── design/SKILL.md
 │   │   ├── implement/SKILL.md
@@ -102,21 +107,20 @@ your-project/
 │   │   ├── feature.md
 │   │   ├── bugfix.md
 │   │   └── longmarch.md
-│   ├── memory/                      # 记忆存储
-│   └── paradigms/                   # 范式
+│   └── memory/                      # 记忆存储（Agent 运行时读写）
 │
 ├── # ↓↓↓ 以下由平台适配器自动生成 ↓↓↓
 │
 ├── AGENTS.md                        # OpenCode / Codex 入口
 ├── .opencode/                       # OpenCode 原生格式
-│   ├── agents/*.md
+│   ├── agents/*.md                  # 含 paradigm-*.md（范式 Agent）
 │   ├── skills/<name>/SKILL.md
 │   └── workflows/*.md
 │
 ├── CLAUDE.md                        # Claude Code 入口
 ├── .claude/                         # Claude Code 原生格式
 │   ├── settings.json
-│   ├── agents/*.md
+│   ├── agents/*.md                  # 含 paradigm-*.md（范式 Agent）
 │   ├── skills/<name>/SKILL.md
 │   └── workflows/*.md
 │
@@ -242,11 +246,12 @@ npx github:kqcoxn/kq-forge init --platform opencode --name my-project
 `init` 命令执行以下操作：
 
 1. 创建 `.kqforge/` 目录，写入 `config.yaml`
-2. 复制核心 Agent 定义到 `.kqforge/agents/`（lead / implementer / reviewer / judge）
+2. 复制核心 Agent 定义到 `.kqforge/agents/`（lead / implementer / reviewer / judge / memory-keeper）
 3. 复制核心 Skills 到 `.kqforge/skills/`（design / implement / review / debug / reflect + 5 个约束类）
 4. 复制默认 Workflows 到 `.kqforge/workflows/`（feature / bugfix / longmarch）
-5. 复制入口模板 `AGENTS.template.md` 到 `.kqforge/AGENTS.template.md`（用户可自定义）
-6. 自动调用平台适配器，生成平台原生文件（`AGENTS.md`、`.opencode/` 等）
+5. 创建 `.kqforge/memory/` 目录（Agent 运行时读写记忆）
+6. 复制入口模板 `AGENTS.template.md` 到 `.kqforge/AGENTS.template.md`（用户可自定义）
+7. 自动调用平台适配器，生成平台原生文件（`AGENTS.md`、`.opencode/` 等）
 
 ---
 
@@ -437,8 +442,8 @@ type: constraint
 - [x] Package：frontend 场景包
 - [x] Package：api 场景包
 - [x] CLI：sync / status / validate / list-packages 命令
-- [ ] Memory：记忆捕获与注入机制
-- [ ] Paradigm：范式提炼命令
+- [x] Memory：记忆读取指令 + memory-keeper 子智能体 + sync 时 prune
+- [x] Paradigm：范式创建流程（Agent 运行时直接创建 paradigm-*.md）
 - [ ] 多平台 AGENTS.md 冲突合并策略
 - [ ] 更多场景包（data-pipeline / mobile / devops）
 

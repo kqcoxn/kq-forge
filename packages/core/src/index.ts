@@ -55,3 +55,7 @@ export type { TemplateVars } from "./template.js";
 // Registry
 export { listPackages, getPackage } from "./registry/packages.js";
 export type { PackageInfo } from "./registry/packages.js";
+
+// Memory
+export { pruneMemories } from "./memory/prune.js";
+export type { PruneResult } from "./memory/prune.js";
