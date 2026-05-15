@@ -82,39 +82,48 @@ Writer（执行者）→ Reviewer（审查者）→ Judge（裁决者）
 
 ```
 your-project/
-├── agents/                      # Agent 定义
-│   ├── lead.md                  # 主编排 Agent
-│   ├── implementer.md           # 实现者
-│   ├── reviewer.md              # 审查者
-│   ├── judge.md                 # 裁决者
-│   └── {custom}.md              # 项目自定义 Agent
-├── skills/                      # 技能定义（文件夹为单位）
-│   ├── design/
-│   │   └── SKILL.md             # 入口文件
-│   ├── implement/
-│   │   └── SKILL.md
-│   ├── typescript/              # 多文件技能集
-│   │   ├── SKILL.md             # 入口概述 + 引用子文件
-│   │   ├── coding-standards.md
-│   │   └── ...
-│   └── {custom}/
-│       └── SKILL.md
-├── workflows/                   # 工作流定义
-│   ├── feature.md               # 功能开发流
-│   ├── bugfix.md                # 缺陷修复流
-│   ├── longmarch.md             # 大型项目里程碑流
-│   └── {custom}.md
-├── .kqforge/                    # KQ-Forge 运行时目录
-│   ├── config.yaml              # 核心配置（人机模式、默认工作流等）
-│   ├── memory/                  # 记忆存储
-│   │   ├── rules.md             # 项目规则与约束
-│   │   ├── facts.md             # 事实记录
-│   │   └── lessons.md           # 教训沉淀
-│   └── paradigms/               # 范式（提炼后的专家 Agent）
-│       └── {name}.md
-├── AGENTS.md                    # 入口文件（协作规则 + 索引）
-└── ...                          # 项目其他文件
+├── .kqforge/                        # KQ-Forge 源文件（Single Source of Truth）
+│   ├── config.yaml                  # 核心配置
+│   ├── AGENTS.template.md           # 入口文件模板（可自定义）
+│   ├── custom-rules.md              # 自定义规则（原样注入入口文件）
+│   ├── agents/                      # Agent 定义（KQ-Forge 格式）
+│   │   ├── lead.md
+│   │   ├── implementer.md
+│   │   ├── reviewer.md
+│   │   └── judge.md
+│   ├── skills/                      # Skill 定义
+│   │   ├── design/SKILL.md
+│   │   ├── implement/SKILL.md
+│   │   ├── review/SKILL.md
+│   │   ├── debug/SKILL.md
+│   │   ├── reflect/SKILL.md
+│   │   └── ...（约束类 + 领域类）
+│   ├── workflows/                   # Workflow 定义
+│   │   ├── feature.md
+│   │   ├── bugfix.md
+│   │   └── longmarch.md
+│   ├── memory/                      # 记忆存储
+│   └── paradigms/                   # 范式
+│
+├── # ↓↓↓ 以下由平台适配器自动生成 ↓↓↓
+│
+├── AGENTS.md                        # OpenCode / Codex 入口
+├── .opencode/                       # OpenCode 原生格式
+│   ├── agents/*.md
+│   ├── skills/<name>/SKILL.md
+│   └── workflows/*.md
+│
+├── CLAUDE.md                        # Claude Code 入口
+├── .claude/                         # Claude Code 原生格式
+│   ├── settings.json
+│   ├── agents/*.md
+│   ├── skills/<name>/SKILL.md
+│   └── workflows/*.md
+│
+└── ...                              # 项目其他文件
 ```
+
+**核心设计**：`.kqforge/` 是唯一的源文件目录。平台原生文件（`AGENTS.md`、`.opencode/`、`CLAUDE.md`、`.claude/`）由适配器从 `.kqforge/` 转译生成，不应手动编辑。
 
 ### Agent 模型
 
@@ -123,14 +132,16 @@ your-project/
 ```yaml
 # .kqforge/agents/implementer.md (frontmatter)
 name: implementer
-scope: src/**                     # 管辖范围
-autonomy: L1                      # 默认自动化等级
-required_skills:                  # 强制绑定（垂直领域/约束类）
+description: 实现者，负责编写代码、修复缺陷、执行技术方案
+scope: src/**
+autonomy: L1
+required_skills:
   - implement
   - test-first
-optional_skills:                  # 按需引用
+optional_skills:
   - debug
   - refactor
+delegates_to: []
 ```
 
 Agent 的强制 skills 是它的"底线"——无论什么工作流调用它，这些 skills 的约束始终生效。可选 skills 则按任务需要动态加载。
@@ -145,20 +156,34 @@ name: feature
 description: 标准功能开发流程
 steps:
   - agent: lead
-    action: decompose          # 任务分解
+    action: decompose
   - agent: implementer
-    action: implement          # 实现
-    autonomy: L1               # 可覆盖 Agent 默认等级
+    action: implement
+    autonomy: L1
   - agent: reviewer
-    action: review             # 审查
+    action: review
   - agent: judge
-    action: judge              # 裁决
-    round_cap: 3               # 最多 3 轮对抗
+    action: judge
+    round_cap: 3
   - agent: lead
-    action: reflect            # 反思沉淀
+    action: reflect
+on_complete: reflect
 ```
 
-工作流可通过 `/workflow feature` 或 `/workflow bugfix` 随时切换。
+### 平台适配
+
+KQ-Forge 通过适配器将统一的源文件转译为各平台的原生格式：
+
+| 平台 | 入口文件 | 原生目录 | 特点 |
+|------|---------|---------|------|
+| **OpenCode** | `AGENTS.md` | `.opencode/` | agents + skills + workflows 独立文件 |
+| **Claude Code** | `CLAUDE.md` | `.claude/` | subagents + skills + workflows + settings.json |
+| **Codex** | `AGENTS.md` | 无 | 全量 inline（Codex 只读 AGENTS.md） |
+
+适配器处理的转译包括：
+- Agent frontmatter 字段映射（KQ-Forge 的 `scope`/`autonomy`/`delegates_to` → 平台原生字段）
+- Skill frontmatter 裁剪（OpenCode 只认 `name` + `description`）
+- Workflow 内容格式化（各平台无原生 workflow 概念，以 markdown 文档形式存放）
 
 ### 配置中心
 
@@ -170,17 +195,29 @@ project:
   description: 项目简述
 
 defaults:
-  autonomy: L1                   # 默认自动化等级
-  workflow: feature              # 默认工作流
-  round_cap: 3                   # 默认对抗轮次上限
+  autonomy: L1
+  workflow: feature
+  round_cap: 3
+  reflect_on_error: true
+  language: zh-CN
 
-platforms:                       # 已启用的平台
-  - claude-code
+platforms:
   - opencode
+  - claude-code
 
 memory:
-  auto_capture: true             # 自动捕获记忆
-  reflect_on_error: true         # 错误后强制反思
+  auto_capture: true
+  max_entries_per_file: 50
+  categories: [rules, facts, lessons]
+
+quality:
+  model: triangle
+  acceptance_criteria: true
+
+disabled:
+  agents: []
+  skills: []
+  workflows: []
 ```
 
 ---
@@ -193,80 +230,113 @@ memory:
 # 在项目根目录初始化（指定平台）
 npx github:kqcoxn/kq-forge init --platform opencode
 
-# 多平台
-npx github:kqcoxn/kq-forge init --platform claude-code --platform opencode
+# 多平台同时启用
+npx github:kqcoxn/kq-forge init --platform opencode,claude-code
 
-# 后续添加平台
-npx github:kqcoxn/kq-forge add-platform codex
+# 指定项目名称
+npx github:kqcoxn/kq-forge init --platform opencode --name my-project
 ```
 
 ### 安装内容
 
-`init` 命令将以下文件脚手架到项目目录：
+`init` 命令执行以下操作：
 
-- 入口文件（`AGENTS.md`）
-- 核心 Agent 定义（`agents/` — lead / implementer / reviewer / judge）
-- 核心 Skills（`skills/` — design / implement / review / debug / reflect + 通用约束）
-- 默认工作流（`workflows/` — feature / bugfix / longmarch）
-- 运行时配置（`.kqforge/config.yaml`）
+1. 创建 `.kqforge/` 目录，写入 `config.yaml`
+2. 复制核心 Agent 定义到 `.kqforge/agents/`（lead / implementer / reviewer / judge）
+3. 复制核心 Skills 到 `.kqforge/skills/`（design / implement / review / debug / reflect + 5 个约束类）
+4. 复制默认 Workflows 到 `.kqforge/workflows/`（feature / bugfix / longmarch）
+5. 复制入口模板 `AGENTS.template.md` 到 `.kqforge/AGENTS.template.md`（用户可自定义）
+6. 自动调用平台适配器，生成平台原生文件（`AGENTS.md`、`.opencode/` 等）
+
+---
+
+## CLI 命令
+
+| 命令 | 说明 |
+|------|------|
+| `kq-forge init` | 初始化项目，创建 `.kqforge/` 并生成平台文件 |
+| `kq-forge add-platform <name>` | 添加平台适配器（opencode / claude-code / codex） |
+| `kq-forge add <package>` | 添加场景包（frontend / api） |
+| `kq-forge sync` | 将 `.kqforge/` 源文件重新同步到各平台原生格式 |
+| `kq-forge status` | 显示当前配置状态 |
+| `kq-forge validate` | 校验配置文件合法性（含交叉引用检查） |
+| `kq-forge list-packages` | 列出可用的场景包 |
 
 ### 添加场景包
 
 ```bash
-# 添加前端开发场景包
+# 前端开发场景包（typescript + frontend-ui）
 npx github:kqcoxn/kq-forge add frontend
 
-# 添加 API 开发场景包
+# API 开发场景包（api + database + security-advanced）
 npx github:kqcoxn/kq-forge add api
-
-# 添加数据管道场景包
-npx github:kqcoxn/kq-forge add data-pipeline
 ```
 
-场景包会添加对应的 Skills 和 Workflows，但不会覆盖已有配置。
+场景包会将对应的 Skills 添加到 `.kqforge/skills/`，并自动同步到已启用的平台目录。
+
+### 手动同步
+
+修改 `.kqforge/` 中的源文件后，运行 sync 重新生成平台文件：
+
+```bash
+npx github:kqcoxn/kq-forge sync
+```
 
 ---
 
-## 使用方式
+## 自定义
 
-### 日常操作
+### 自定义入口模板
 
-```bash
-# 切换工作流
-/workflow feature
-/workflow bugfix
-/workflow refactor
+`.kqforge/AGENTS.template.md` 是生成平台入口文件（`AGENTS.md` / `CLAUDE.md`）的母版。你可以直接编辑它来控制 AI 看到的顶层指令结构。
 
-# 切换自动化等级（全局）
-/autonomy L2
+模板使用 `{{PLACEHOLDER}}` 占位符，sync 时自动替换为动态内容：
 
-# 切换单个 Agent 的等级
-/autonomy implementer L3
+| 占位符 | 说明 |
+|--------|------|
+| `{{ENTRY_FILENAME}}` | 入口文件名（由平台决定） |
+| `{{DEFAULT_AUTONOMY}}` | 默认 autonomy 等级（来自 config） |
+| `{{ROUND_CAP}}` | 对抗轮次上限（来自 config） |
+| `{{CUSTOM_RULES}}` | 自定义规则（来自 config，为空时整段消失） |
+| `{{AGENTS_TABLE}}` | Agents 索引表（自动生成） |
+| `{{SKILLS_TABLE}}` | Skills 索引表（自动生成） |
+| `{{WORKFLOWS_TABLE}}` | Workflows 索引表（自动生成） |
 
-# 触发记忆沉淀
-/remember "这个项目的 API 响应统一用 envelope 格式"
+编辑后运行 `kq-forge sync` 即可生效。
 
-# 提炼范式（从记忆中生成专家 Agent）
-/evolve api-expert
+> **注意**：不要手动编辑生成的 `AGENTS.md` 或 `CLAUDE.md`——它们会在下次 sync 时被覆盖。始终编辑 `.kqforge/AGENTS.template.md`。
 
-# 查看当前状态
-/status
+### 自定义规则
+
+编辑 `.kqforge/custom-rules.md` 来添加项目级规则。该文件内容会被原样注入到生成的入口文件中。
+
+默认内容：
+
+```markdown
+## 自定义规则
+
+全程使用中文。
 ```
+
+你可以自由编辑这个文件，添加任何你希望 AI 遵守的规则。如果删除该文件或清空内容，sync 后入口文件中不会出现自定义规则章节。
 
 ### 自定义 Agent
 
-在 `agents/` 下创建新文件即可：
+在 `.kqforge/agents/` 下创建新文件：
 
 ```markdown
 ---
 name: api-designer
+description: API 设计专家
 scope: src/api/**
 autonomy: L1
 required_skills:
   - design
-  - api-conventions
+  - api
 optional_skills:
   - implement
+delegates_to:
+  - implementer
 ---
 
 你是 API 设计专家。你的职责是...
@@ -274,7 +344,7 @@ optional_skills:
 
 ### 自定义工作流
 
-在 `workflows/` 下创建新文件：
+在 `.kqforge/workflows/` 下创建新文件：
 
 ```markdown
 ---
@@ -289,6 +359,7 @@ steps:
     autonomy: L3
   - agent: lead
     action: summarize
+on_complete: reflect
 ---
 
 这是一个轻量级探索流程...
@@ -296,10 +367,10 @@ steps:
 
 ### 自定义 Skill
 
-在 `skills/` 下创建文件夹，入口为 `SKILL.md`：
+在 `.kqforge/skills/` 下创建文件夹，入口为 `SKILL.md`：
 
 ```
-skills/
+.kqforge/skills/
 └── api-conventions/
     └── SKILL.md
 ```
@@ -321,6 +392,10 @@ type: constraint
 ...
 ```
 
+### 修改后同步
+
+自定义文件创建/修改后，运行 `kq-forge sync` 将变更同步到平台原生目录。
+
 ---
 
 ## 设计原则
@@ -333,6 +408,7 @@ type: constraint
 | **平台无关** | 支持多 AI 工具，不绑定单一平台 |
 | **轻量化** | 不自带 MCP，不引入重依赖，允许 IDE/Agent 自行调用外部工具 |
 | **必须扩展** | 框架是脚手架，项目必须根据自身情况添加 Agent/Skill/Workflow |
+| **源文件唯一** | `.kqforge/` 是 single source of truth，平台文件由适配器生成 |
 
 ---
 
@@ -346,7 +422,7 @@ type: constraint
 | **质量机制** | 对抗三角 | TDD 铁律 | Hook 门控 | 中间件链 | 三维验证 |
 | **知识管理** | 记忆 + 范式 | 无 | 本能进化 | 持久化记忆 | Delta Specs |
 | **扩展性** | 必须扩展 | 插件市场 | 技能库 | 技能 + MCP | Schema 定制 |
-| **平台** | 多平台 CLI | 8+ 插件 | Claude 为主 | 独立部署 | 30+ 工具 |
+| **平台** | 多平台适配 | 8+ 插件 | Claude 为主 | 独立部署 | 30+ 工具 |
 
 ---
 
@@ -354,14 +430,17 @@ type: constraint
 
 - [x] Core：agents / skills / workflows 模板定义
 - [x] Config Schema：`.kqforge/config.yaml` 完整 schema
-- [ ] Scaffolding：`npx github:kqcoxn/kq-forge init` 脚本实现
-- [ ] Platform：Claude Code 适配器
-- [ ] Platform：OpenCode 适配器
-- [ ] Platform：Codex CLI 适配器
-- [ ] Package：frontend 场景包
-- [ ] Package：api 场景包
+- [x] Scaffolding：`npx github:kqcoxn/kq-forge init` CLI 实现
+- [x] Platform：OpenCode 适配器（AGENTS.md + .opencode/）
+- [x] Platform：Claude Code 适配器（CLAUDE.md + .claude/）
+- [x] Platform：Codex CLI 适配器（AGENTS.md inline）
+- [x] Package：frontend 场景包
+- [x] Package：api 场景包
+- [x] CLI：sync / status / validate / list-packages 命令
 - [ ] Memory：记忆捕获与注入机制
 - [ ] Paradigm：范式提炼命令
+- [ ] 多平台 AGENTS.md 冲突合并策略
+- [ ] 更多场景包（data-pipeline / mobile / devops）
 
 ---
 

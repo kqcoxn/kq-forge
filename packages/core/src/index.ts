@@ -48,6 +48,10 @@ export type { PlatformAdapter, SyncContext, SyncResult } from "./platform/adapte
 // Context
 export { loadProjectContext } from "./context.js";
 
+// Template
+export { renderTemplate } from "./template.js";
+export type { TemplateVars } from "./template.js";
+
 // Registry
 export { listPackages, getPackage } from "./registry/packages.js";
 export type { PackageInfo } from "./registry/packages.js";

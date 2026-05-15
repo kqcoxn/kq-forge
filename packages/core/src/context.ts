@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, loadAgent, loadSkill, loadWorkflow } from "./config/loader.js";
@@ -9,6 +9,36 @@ import type {
   WorkflowDefinition,
 } from "./config/schema.js";
 import type { SyncContext } from "./platform/adapter.js";
+
+/** 默认模板（当 .kqforge/AGENTS.template.md 不存在时的回退） */
+const DEFAULT_TEMPLATE = `# {{ENTRY_FILENAME}}
+
+---
+
+## Autonomy Level 约定
+
+当前默认等级：**{{DEFAULT_AUTONOMY}}**
+
+---
+
+{{CUSTOM_RULES}}
+
+## Agents
+
+{{AGENTS_TABLE}}
+
+---
+
+## Skills
+
+{{SKILLS_TABLE}}
+
+---
+
+## Workflows
+
+{{WORKFLOWS_TABLE}}
+`;
 
 /**
  * 从 .kqforge/ 目录加载完整的项目上下文，供平台适配器使用。
@@ -23,12 +53,28 @@ export async function loadProjectContext(
   const skills = await loadAllSkills(join(kqDir, "skills"));
   const workflows = await loadAllWorkflows(join(kqDir, "workflows"));
 
+  // 读取模板文件
+  const templatePath = join(kqDir, "AGENTS.template.md");
+  let template = DEFAULT_TEMPLATE;
+  if (existsSync(templatePath)) {
+    template = await readFile(templatePath, "utf-8");
+  }
+
+  // 读取自定义规则文件
+  const customRulesPath = join(kqDir, "custom-rules.md");
+  let customRules = "";
+  if (existsSync(customRulesPath)) {
+    customRules = (await readFile(customRulesPath, "utf-8")).trim();
+  }
+
   return {
     projectRoot,
     config,
     agents,
     skills,
     workflows,
+    template,
+    customRules,
     platformConfig: {
       platform: config.platforms[0] || "opencode",
       output: { directory: ".", agent_format: "single-file" },

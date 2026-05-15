@@ -153,5 +153,19 @@ export async function initProject(options: InitOptions): Promise<InitResult> {
   }
   result.files.push({ path: ".kqforge/skills/", action: "created" });
 
+  // AGENTS.template.md → .kqforge/AGENTS.template.md
+  const templateSrc = join(templateRoot, "AGENTS.template.md");
+  const templateDest = join(configDir, "AGENTS.template.md");
+  if (existsSync(templateSrc)) {
+    await cp(templateSrc, templateDest, { force: true });
+    result.files.push({ path: ".kqforge/AGENTS.template.md", action: "created" });
+  }
+
+  // custom-rules.md → .kqforge/custom-rules.md
+  const customRulesDest = join(configDir, "custom-rules.md");
+  const defaultCustomRules = `## 自定义规则\n\n全程使用中文。\n`;
+  await writeFile(customRulesDest, defaultCustomRules, "utf-8");
+  result.files.push({ path: ".kqforge/custom-rules.md", action: "created" });
+
   return result;
 }

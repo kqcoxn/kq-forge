@@ -20,6 +20,10 @@ export interface SyncContext {
   workflows: WorkflowDefinition[];
   /** 平台特定配置 */
   platformConfig: PlatformConfig;
+  /** AGENTS.template.md 模板内容（用户可自定义） */
+  template: string;
+  /** .kqforge/custom-rules.md 的原始内容（为空字符串时不渲染） */
+  customRules: string;
 }
 
 export interface SyncResult {
