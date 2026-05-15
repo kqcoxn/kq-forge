@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // src/index.ts
-import { defineCommand as defineCommand7, runMain } from "citty";
+import { defineCommand as defineCommand8, runMain } from "citty";
 
 // src/commands/init.ts
 import { defineCommand } from "citty";
@@ -24,13 +24,16 @@ import { existsSync as existsSync3 } from "fs";
 import { join as join3, resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { stringify as stringifyYaml } from "yaml";
-import { readFile as readFile3, writeFile as writeFile2, mkdir as mkdir2 } from "fs/promises";
+import { readFile as readFile2, writeFile as writeFile2, mkdir as mkdir2 } from "fs/promises";
 import { existsSync as existsSync4 } from "fs";
 import { join as join4 } from "path";
 import { parse as parseYaml2, stringify as stringifyYaml2 } from "yaml";
 import { cp as cp2, mkdir as mkdir3 } from "fs/promises";
 import { existsSync as existsSync5 } from "fs";
 import { join as join5 } from "path";
+import { readdir as readdir2 } from "fs/promises";
+import { existsSync as existsSync6 } from "fs";
+import { join as join6 } from "path";
 var AutonomyLevel = z.enum(["L0", "L1", "L2", "L3"]);
 var PlatformName = z.enum(["claude-code", "opencode", "codex"]);
 var QualityModel = z.enum(["triangle", "linear", "none"]);
@@ -397,6 +400,9 @@ async function initProject(options) {
   await mkdir(join3(configDir, "memory"), { recursive: true });
   await mkdir(join3(configDir, "paradigms"), { recursive: true });
   await mkdir(join3(configDir, "platforms"), { recursive: true });
+  await mkdir(join3(configDir, "agents"), { recursive: true });
+  await mkdir(join3(configDir, "skills"), { recursive: true });
+  await mkdir(join3(configDir, "workflows"), { recursive: true });
   await writeFile(join3(configDir, "memory", ".gitkeep"), "");
   await writeFile(join3(configDir, "paradigms", ".gitkeep"), "");
   const config = {
@@ -425,18 +431,18 @@ async function initProject(options) {
   const configPath = join3(configDir, "config.yaml");
   await writeFile(configPath, stringifyYaml(config), "utf-8");
   result.files.push({ path: ".kqforge/config.yaml", action: "created" });
-  await copyDirIfNotExists(
-    join3(templateRoot, "agents"),
-    join3(targetDir, "agents"),
-    force,
-    result
-  );
-  await copyDirIfNotExists(
-    join3(templateRoot, "workflows"),
-    join3(targetDir, "workflows"),
-    force,
-    result
-  );
+  const agentsSrc = join3(templateRoot, "agents");
+  const agentsDest = join3(configDir, "agents");
+  if (existsSync3(agentsSrc)) {
+    await cp(agentsSrc, agentsDest, { recursive: true, force: true });
+    result.files.push({ path: ".kqforge/agents/", action: "created" });
+  }
+  const workflowsSrc = join3(templateRoot, "workflows");
+  const workflowsDest = join3(configDir, "workflows");
+  if (existsSync3(workflowsSrc)) {
+    await cp(workflowsSrc, workflowsDest, { recursive: true, force: true });
+    result.files.push({ path: ".kqforge/workflows/", action: "created" });
+  }
   const coreSkills = [
     "design",
     "implement",
@@ -449,120 +455,15 @@ async function initProject(options) {
     "test-first",
     "verify-before-done"
   ];
-  const skillsDir = join3(targetDir, "skills");
-  await mkdir(skillsDir, { recursive: true });
   for (const skillName of coreSkills) {
     const src = join3(templateRoot, "skills", skillName);
-    const dest = join3(skillsDir, skillName);
+    const dest = join3(configDir, "skills", skillName);
     if (existsSync3(src)) {
-      await copyDirIfNotExists(src, dest, force, result, `skills/${skillName}`);
+      await cp(src, dest, { recursive: true, force: true });
     }
   }
-  const agentsMd = generateAgentsMd(projectName, config);
-  const agentsMdPath = join3(targetDir, "AGENTS.md");
-  if (!existsSync3(agentsMdPath) || force) {
-    await writeFile(agentsMdPath, agentsMd, "utf-8");
-    result.files.push({ path: "AGENTS.md", action: "created" });
-  } else {
-    result.files.push({ path: "AGENTS.md", action: "skipped" });
-    result.warnings.push("AGENTS.md \u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\uFF08\u4F7F\u7528 --force \u8986\u76D6\uFF09");
-  }
+  result.files.push({ path: ".kqforge/skills/", action: "created" });
   return result;
-}
-async function copyDirIfNotExists(src, dest, force, result, prefix) {
-  if (!existsSync3(src)) return;
-  if (existsSync3(dest) && !force) {
-    const relPath2 = prefix || dest;
-    result.files.push({ path: relPath2, action: "skipped" });
-    result.warnings.push(`${relPath2}/ \u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7`);
-    return;
-  }
-  await cp(src, dest, { recursive: true, force });
-  const relPath = prefix || dest;
-  result.files.push({ path: relPath, action: "created" });
-}
-function generateAgentsMd(projectName, config) {
-  return `# ${projectName} \u2014 Agent Configuration
-
-> \u672C\u9879\u76EE\u4F7F\u7528 [KQ-Forge](https://github.com/kqcoxn/kq-forge) \u7BA1\u7406 AI \u534F\u4F5C\u3002
-
----
-
-## \u9879\u76EE\u534F\u4F5C\u89C4\u5219
-
-\u4EE5\u4E0B\u89C4\u5219\u5BF9\u6240\u6709 Agent \u751F\u6548\uFF0C\u4E0D\u53EF\u88AB\u5355\u4E2A Agent \u6216 Workflow \u8986\u76D6\u3002
-
-### \u57FA\u672C\u539F\u5219
-
-1. **\u4EE5\u4EBA\u4E3A\u672C** \u2014 \u4EBA\u7C7B\u662F\u6700\u7EC8\u51B3\u7B56\u8005\u3002\u4EFB\u4F55 Agent \u5728\u4E0D\u786E\u5B9A\u65F6\u5E94\u8BF7\u6C42\u6F84\u6E05\u800C\u975E\u731C\u6D4B\u3002
-2. **\u56E0\u5730\u5236\u5B9C** \u2014 \u4E0D\u540C\u4EFB\u52A1\u4F7F\u7528\u4E0D\u540C\u7684 autonomy level\uFF0C\u4E0D\u5B58\u5728"\u4E00\u5200\u5207"\u7684\u6700\u4F18\u6A21\u5F0F\u3002
-3. **\u5B9E\u4E8B\u6C42\u662F** \u2014 \u72AF\u9519\u4E0D\u53EF\u6015\uFF0C\u9690\u7792\u9519\u8BEF\u4E0D\u53EF\u63A5\u53D7\u3002\u53D1\u73B0\u95EE\u9898\u7ACB\u5373\u4E0A\u62A5\u3002
-
-### Autonomy Level \u7EA6\u5B9A
-
-| \u7B49\u7EA7 | \u6A21\u5F0F | \u4EBA\u7C7B\u89D2\u8272 | \u9002\u7528\u573A\u666F |
-|------|------|---------|---------|
-| **L0** | \u5168\u624B\u52A8 | Agent \u5EFA\u8BAE\uFF0C\u4EBA\u6267\u884C | \u9AD8\u98CE\u9669\u53D8\u66F4\u3001\u67B6\u6784\u51B3\u7B56 |
-| **L1** | \u534A\u81EA\u52A8 | Agent \u6267\u884C\uFF0C\u5173\u952E\u8282\u70B9\u7B49\u4EBA\u786E\u8BA4 | \u5E38\u89C4\u529F\u80FD\u5F00\u53D1 |
-| **L2** | \u76D1\u7763\u81EA\u52A8 | Agent \u5168\u81EA\u52A8\uFF0C\u4EBA\u5F02\u6B65 review | \u6279\u91CF\u4EFB\u52A1\u3001\u91CD\u6784 |
-| **L3** | \u5168\u81EA\u52A8 | Agent \u81EA\u4E3B\u5B8C\u6210\uFF0C\u4EC5\u5931\u8D25\u65F6\u901A\u77E5 | \u673A\u68B0\u6027\u4EFB\u52A1\u3001\u683C\u5F0F\u5316 |
-
-\u9ED8\u8BA4\u7B49\u7EA7\uFF1A**${config.defaults.autonomy}**
-
-### \u5BF9\u6297\u4E09\u89D2\u7EA6\u5B9A
-
-- Writer\uFF08\u6267\u884C\u8005\uFF09\u4E0D\u80FD review \u81EA\u5DF1\u7684\u4EA7\u51FA
-- Reviewer\uFF08\u5BA1\u67E5\u8005\uFF09\u53EA\u8BFB\uFF0C\u4E0D\u80FD\u76F4\u63A5\u4FEE\u6539\u4EE3\u7801
-- Judge\uFF08\u88C1\u51B3\u8005\uFF09\u72EC\u7ACB\u4E8E Writer \u548C Reviewer\uFF0C\u505A\u6700\u7EC8\u88C1\u51B3
-- \u5BF9\u6297\u8F6E\u6B21\u6709\u4E0A\u9650\uFF08\u9ED8\u8BA4 \`round_cap: ${config.defaults.round_cap}\`\uFF09\uFF0C\u8FBE\u5230\u4E0A\u9650\u540E Judge \u5F3A\u5236\u88C1\u51B3
-
-### \u8BB0\u5FC6\u6C89\u6DC0\u89E6\u53D1\u6761\u4EF6
-
-\u4EE5\u4E0B\u60C5\u51B5\u5FC5\u987B\u89E6\u53D1\u8BB0\u5FC6\u6C89\u6DC0\uFF08\u5199\u5165 \`.kqforge/memory/\`\uFF09\uFF1A
-
-- \u53D1\u73B0\u9879\u76EE\u7EA7\u7EA6\u675F\u6216\u7EA6\u5B9A
-- \u72AF\u9519\u540E\u7684\u6839\u56E0\u5206\u6790\u7ED3\u8BBA
-- \u4EBA\u7C7B\u660E\u786E\u6307\u51FA\u7684\u504F\u597D\u6216\u89C4\u5219
-- \u53CD\u590D\u51FA\u73B0\u7684\u6A21\u5F0F\uFF08\u7B2C\u4E8C\u6B21\u9047\u5230\u65F6\u6C89\u6DC0\uFF09
-
----
-
-## \u914D\u7F6E
-
-\u6240\u6709\u914D\u7F6E\u4F4D\u4E8E \`.kqforge/config.yaml\`\u3002
-
-## \u5F53\u524D\u72B6\u6001
-
-- Autonomy: ${config.defaults.autonomy}
-- Workflow: ${config.defaults.workflow}
-- Quality: ${config.quality.model}
-- Platforms: ${config.platforms.join(", ") || "\u65E0"}
-
----
-
-## \u81EA\u5B9A\u4E49\u89C4\u5219
-
-\u5168\u7A0B\u4F7F\u7528\u4E2D\u6587\u3002
-
----
-
-## Agents
-
-| Agent | \u6587\u4EF6 |
-|-------|------|
-| lead | [agents/lead.md](agents/lead.md) |
-| implementer | [agents/implementer.md](agents/implementer.md) |
-| reviewer | [agents/reviewer.md](agents/reviewer.md) |
-| judge | [agents/judge.md](agents/judge.md) |
-
-## Workflows
-
-| Workflow | \u6587\u4EF6 |
-|----------|------|
-| feature | [workflows/feature.md](workflows/feature.md) |
-| bugfix | [workflows/bugfix.md](workflows/bugfix.md) |
-| longmarch | [workflows/longmarch.md](workflows/longmarch.md) |
-`;
 }
 async function addPlatform(options) {
   const { targetDir, platform } = options;
@@ -573,7 +474,7 @@ async function addPlatform(options) {
       message: "\u9879\u76EE\u672A\u521D\u59CB\u5316\u3002\u8BF7\u5148\u8FD0\u884C kq-forge init\u3002"
     };
   }
-  const raw = await readFile3(configPath, "utf-8");
+  const raw = await readFile2(configPath, "utf-8");
   const parsed = parseYaml2(raw);
   const config = KqForgeConfigSchema.parse(parsed);
   if (config.platforms.includes(platform)) {
@@ -678,6 +579,934 @@ async function addPackage(options) {
     skipped
   };
 }
+async function loadProjectContext(projectRoot) {
+  const config = await loadConfig(projectRoot);
+  const kqDir = join6(projectRoot, ".kqforge");
+  const agents = await loadAllAgents(join6(kqDir, "agents"));
+  const skills = await loadAllSkills(join6(kqDir, "skills"));
+  const workflows = await loadAllWorkflows(join6(kqDir, "workflows"));
+  return {
+    projectRoot,
+    config,
+    agents,
+    skills,
+    workflows,
+    platformConfig: {
+      platform: config.platforms[0] || "opencode",
+      output: { directory: ".", agent_format: "single-file" },
+      mapping: { skill_injection: "inline" },
+      sync: { auto: true, watch: false, on_conflict: "overwrite" },
+      platform_specific: {}
+    }
+  };
+}
+async function loadAllAgents(dir) {
+  if (!existsSync6(dir)) return [];
+  const entries = await readdir2(dir, { withFileTypes: true });
+  const agents = [];
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name.endsWith(".md")) {
+      try {
+        const agent = await loadAgent(join6(dir, entry.name));
+        agents.push(agent);
+      } catch {
+      }
+    }
+  }
+  return agents;
+}
+async function loadAllSkills(dir) {
+  if (!existsSync6(dir)) return [];
+  const entries = await readdir2(dir, { withFileTypes: true });
+  const skills = [];
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      const skillFile = join6(dir, entry.name, "SKILL.md");
+      if (existsSync6(skillFile)) {
+        try {
+          const skill = await loadSkill(skillFile);
+          const subDir = join6(dir, entry.name);
+          const subEntries = await readdir2(subDir, { withFileTypes: true });
+          const subFiles = [];
+          for (const sub of subEntries) {
+            if (sub.isFile() && sub.name.endsWith(".md") && sub.name !== "SKILL.md") {
+              const { readFile: readFile3 } = await import("fs/promises");
+              const content = await readFile3(join6(subDir, sub.name), "utf-8");
+              subFiles.push({ name: sub.name, content });
+            }
+          }
+          if (subFiles.length > 0) {
+            skill.subFiles = subFiles;
+          }
+          skills.push(skill);
+        } catch {
+        }
+      }
+    }
+  }
+  return skills;
+}
+async function loadAllWorkflows(dir) {
+  if (!existsSync6(dir)) return [];
+  const entries = await readdir2(dir, { withFileTypes: true });
+  const workflows = [];
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name.endsWith(".md")) {
+      try {
+        const wf = await loadWorkflow(join6(dir, entry.name));
+        workflows.push(wf);
+      } catch {
+      }
+    }
+  }
+  return workflows;
+}
+
+// ../platform-opencode/dist/index.js
+import { writeFile as writeFile3, mkdir as mkdir4 } from "fs/promises";
+import { join as join7 } from "path";
+var OpenCodeAdapter = class {
+  name = "opencode";
+  async sync(context) {
+    const { projectRoot, agents, skills, workflows } = context;
+    const result = { files: [], warnings: [] };
+    const opencodeDir = join7(projectRoot, ".opencode");
+    await mkdir4(join7(opencodeDir, "agents"), { recursive: true });
+    await mkdir4(join7(opencodeDir, "skills"), { recursive: true });
+    await mkdir4(join7(opencodeDir, "workflows"), { recursive: true });
+    const agentsMdContent = this.generateAgentsMd(context);
+    const agentsMdPath = join7(projectRoot, "AGENTS.md");
+    await writeFile3(agentsMdPath, agentsMdContent, "utf-8");
+    result.files.push({ path: "AGENTS.md", action: "created" });
+    for (const agent of agents) {
+      const content = this.transformAgent(agent);
+      const filePath = join7(opencodeDir, "agents", `${agent.frontmatter.name}.md`);
+      await writeFile3(filePath, content, "utf-8");
+      result.files.push({
+        path: `.opencode/agents/${agent.frontmatter.name}.md`,
+        action: "created"
+      });
+    }
+    for (const skill of skills) {
+      const skillDir = join7(opencodeDir, "skills", skill.frontmatter.name);
+      await mkdir4(skillDir, { recursive: true });
+      const content = this.transformSkill(skill);
+      await writeFile3(join7(skillDir, "SKILL.md"), content, "utf-8");
+      result.files.push({
+        path: `.opencode/skills/${skill.frontmatter.name}/SKILL.md`,
+        action: "created"
+      });
+      if (skill.subFiles) {
+        for (const sub of skill.subFiles) {
+          await writeFile3(join7(skillDir, sub.name), sub.content, "utf-8");
+        }
+      }
+    }
+    for (const wf of workflows) {
+      const content = this.transformWorkflow(wf);
+      const filePath = join7(opencodeDir, "workflows", `${wf.frontmatter.name}.md`);
+      await writeFile3(filePath, content, "utf-8");
+      result.files.push({
+        path: `.opencode/workflows/${wf.frontmatter.name}.md`,
+        action: "created"
+      });
+    }
+    return result;
+  }
+  getDefaultConfig() {
+    return {
+      platform: "opencode",
+      output: {
+        directory: ".opencode",
+        entry_file: "AGENTS.md",
+        agent_format: "single-file"
+      },
+      mapping: {
+        skill_injection: "inline"
+      },
+      sync: {
+        auto: true,
+        watch: false,
+        on_conflict: "overwrite"
+      },
+      platform_specific: {}
+    };
+  }
+  /**
+   * 转译 Agent 为 OpenCode 格式
+   * OpenCode agent frontmatter: name, description, (自定义字段写入 body)
+   */
+  transformAgent(agent) {
+    const fm = agent.frontmatter;
+    const lines = [];
+    lines.push(`---`);
+    lines.push(`name: ${fm.name}`);
+    if (fm.description) {
+      lines.push(`description: ${fm.description}`);
+    }
+    lines.push(`---`);
+    lines.push(``);
+    lines.push(`# ${fm.name}
+`);
+    if (fm.scope) {
+      const scope = Array.isArray(fm.scope) ? fm.scope.join(", ") : fm.scope;
+      lines.push(`**Scope**: ${scope}
+`);
+    }
+    lines.push(`**Autonomy**: ${fm.autonomy}
+`);
+    if (fm.required_skills.length > 0) {
+      lines.push(`**Required Skills**: ${fm.required_skills.join(", ")}
+`);
+    }
+    if (fm.optional_skills.length > 0) {
+      lines.push(`**Optional Skills**: ${fm.optional_skills.join(", ")}
+`);
+    }
+    if (fm.delegates_to.length > 0) {
+      lines.push(`**Delegates To**: ${fm.delegates_to.join(", ")}
+`);
+    }
+    if (agent.body) {
+      lines.push(`---
+`);
+      lines.push(agent.body);
+    }
+    return lines.join("\n");
+  }
+  /**
+   * 转译 Skill 为 OpenCode 格式
+   * OpenCode skill frontmatter: 只保留 name + description
+   */
+  transformSkill(skill) {
+    const fm = skill.frontmatter;
+    const lines = [];
+    lines.push(`---`);
+    lines.push(`name: ${fm.name}`);
+    if (fm.description) {
+      lines.push(`description: ${fm.description}`);
+    }
+    lines.push(`---`);
+    lines.push(``);
+    if (skill.body) {
+      lines.push(skill.body);
+    }
+    return lines.join("\n");
+  }
+  /**
+   * 转译 Workflow（OpenCode 无原生 workflow 概念，保持原格式）
+   */
+  transformWorkflow(wf) {
+    const fm = wf.frontmatter;
+    const lines = [];
+    lines.push(`---`);
+    lines.push(`name: ${fm.name}`);
+    if (fm.description) {
+      lines.push(`description: ${fm.description}`);
+    }
+    lines.push(`---`);
+    lines.push(``);
+    lines.push(`# ${fm.name}
+`);
+    if (fm.description) {
+      lines.push(`${fm.description}
+`);
+    }
+    lines.push(`## \u6B65\u9AA4
+`);
+    for (let i = 0; i < fm.steps.length; i++) {
+      const step = fm.steps[i];
+      lines.push(`${i + 1}. **${step.agent}** \u2192 ${step.action} (${step.autonomy || "\u7EE7\u627F\u9ED8\u8BA4"})`);
+      if (step.gate?.message) {
+        lines.push(`   - Gate: ${step.gate.message}`);
+      }
+      if (step.on_fail !== "retry") {
+        lines.push(`   - On Fail: ${step.on_fail}`);
+      }
+    }
+    lines.push(``);
+    if (wf.body) {
+      lines.push(`---
+`);
+      lines.push(wf.body);
+    }
+    return lines.join("\n");
+  }
+  /**
+   * 生成 AGENTS.md 索引入口
+   */
+  generateAgentsMd(context) {
+    const { config, agents, skills, workflows } = context;
+    const sections = [];
+    sections.push(`# AGENTS.md
+`);
+    sections.push(
+      `> \u672C\u6587\u4EF6\u7531 KQ-Forge \u81EA\u52A8\u751F\u6210\uFF0C\u8BF7\u52FF\u624B\u52A8\u7F16\u8F91\u3002\u4FEE\u6539 \`.kqforge/config.yaml\` \u540E\u8FD0\u884C \`kq-forge sync\` \u91CD\u65B0\u540C\u6B65\u3002
+`
+    );
+    sections.push(`---
+`);
+    sections.push(`## \u9879\u76EE\u534F\u4F5C\u89C4\u5219
+`);
+    sections.push(
+      `\u4EE5\u4E0B\u89C4\u5219\u5BF9\u6240\u6709 Agent \u751F\u6548\uFF0C\u4E0D\u53EF\u88AB\u5355\u4E2A Agent \u6216 Workflow \u8986\u76D6\u3002
+`
+    );
+    sections.push(`### \u57FA\u672C\u539F\u5219
+`);
+    sections.push(
+      `1. **\u4EE5\u4EBA\u4E3A\u672C** \u2014 \u4EBA\u7C7B\u662F\u6700\u7EC8\u51B3\u7B56\u8005\u3002\u4EFB\u4F55 Agent \u5728\u4E0D\u786E\u5B9A\u65F6\u5E94\u8BF7\u6C42\u6F84\u6E05\u800C\u975E\u731C\u6D4B\u3002`
+    );
+    sections.push(
+      `2. **\u56E0\u5730\u5236\u5B9C** \u2014 \u4E0D\u540C\u4EFB\u52A1\u4F7F\u7528\u4E0D\u540C\u7684 autonomy level\uFF0C\u4E0D\u5B58\u5728"\u4E00\u5200\u5207"\u7684\u6700\u4F18\u6A21\u5F0F\u3002`
+    );
+    sections.push(
+      `3. **\u5B9E\u4E8B\u6C42\u662F** \u2014 \u72AF\u9519\u4E0D\u53EF\u6015\uFF0C\u9690\u7792\u9519\u8BEF\u4E0D\u53EF\u63A5\u53D7\u3002\u53D1\u73B0\u95EE\u9898\u7ACB\u5373\u4E0A\u62A5\u3002
+`
+    );
+    sections.push(`### Autonomy Level \u7EA6\u5B9A
+`);
+    sections.push(`| \u7B49\u7EA7   | \u6A21\u5F0F     | \u4EBA\u7C7B\u89D2\u8272                     | \u9002\u7528\u573A\u666F             |`);
+    sections.push(`| ------ | -------- | ---------------------------- | -------------------- |`);
+    sections.push(`| **L0** | \u5168\u624B\u52A8   | Agent \u5EFA\u8BAE\uFF0C\u4EBA\u6267\u884C           | \u9AD8\u98CE\u9669\u53D8\u66F4\u3001\u67B6\u6784\u51B3\u7B56 |`);
+    sections.push(`| **L1** | \u534A\u81EA\u52A8   | Agent \u6267\u884C\uFF0C\u5173\u952E\u8282\u70B9\u7B49\u4EBA\u786E\u8BA4 | \u5E38\u89C4\u529F\u80FD\u5F00\u53D1         |`);
+    sections.push(`| **L2** | \u76D1\u7763\u81EA\u52A8 | Agent \u5168\u81EA\u52A8\uFF0C\u4EBA\u5F02\u6B65 review  | \u6279\u91CF\u4EFB\u52A1\u3001\u91CD\u6784       |`);
+    sections.push(`| **L3** | \u5168\u81EA\u52A8   | Agent \u81EA\u4E3B\u5B8C\u6210\uFF0C\u4EC5\u5931\u8D25\u65F6\u901A\u77E5 | \u673A\u68B0\u6027\u4EFB\u52A1\u3001\u683C\u5F0F\u5316   |
+`);
+    sections.push(`\u9ED8\u8BA4\u7B49\u7EA7\uFF1A**${config.defaults.autonomy}**\uFF08\u53EF\u5728 \`.kqforge/config.yaml\` \u4E2D\u4FEE\u6539\uFF09\u3002
+`);
+    sections.push(`### \u5BF9\u6297\u4E09\u89D2\u7EA6\u5B9A
+`);
+    sections.push(`- Writer\uFF08\u6267\u884C\u8005\uFF09\u4E0D\u80FD review \u81EA\u5DF1\u7684\u4EA7\u51FA`);
+    sections.push(`- Reviewer\uFF08\u5BA1\u67E5\u8005\uFF09\u53EA\u8BFB\uFF0C\u4E0D\u80FD\u76F4\u63A5\u4FEE\u6539\u4EE3\u7801`);
+    sections.push(`- Judge\uFF08\u88C1\u51B3\u8005\uFF09\u72EC\u7ACB\u4E8E Writer \u548C Reviewer\uFF0C\u505A\u6700\u7EC8\u88C1\u51B3`);
+    sections.push(
+      `- \u5BF9\u6297\u8F6E\u6B21\u6709\u4E0A\u9650\uFF08\u9ED8\u8BA4 \`round_cap: ${config.defaults.round_cap}\`\uFF09\uFF0C\u8FBE\u5230\u4E0A\u9650\u540E Judge \u5F3A\u5236\u88C1\u51B3
+`
+    );
+    sections.push(`### \u8BB0\u5FC6\u6C89\u6DC0\u89E6\u53D1\u6761\u4EF6
+`);
+    sections.push(
+      `\u4EE5\u4E0B\u60C5\u51B5\u5FC5\u987B\u89E6\u53D1\u8BB0\u5FC6\u6C89\u6DC0\uFF08\u5199\u5165 \`.kqforge/memory/\`\uFF09\uFF1A
+`
+    );
+    sections.push(`- \u53D1\u73B0\u9879\u76EE\u7EA7\u7EA6\u675F\u6216\u7EA6\u5B9A\uFF08\u5982"\u672C\u9879\u76EE\u7528 pnpm"\uFF09`);
+    sections.push(`- \u72AF\u9519\u540E\u7684\u6839\u56E0\u5206\u6790\u7ED3\u8BBA`);
+    sections.push(`- \u4EBA\u7C7B\u660E\u786E\u6307\u51FA\u7684\u504F\u597D\u6216\u89C4\u5219`);
+    sections.push(`- \u53CD\u590D\u51FA\u73B0\u7684\u6A21\u5F0F\uFF08\u7B2C\u4E8C\u6B21\u9047\u5230\u65F6\u6C89\u6DC0\uFF09
+`);
+    sections.push(`---
+`);
+    sections.push(`## \u81EA\u5B9A\u4E49\u89C4\u5219
+`);
+    sections.push(`\u5168\u7A0B\u4F7F\u7528\u4E2D\u6587\u3002
+`);
+    sections.push(`---
+`);
+    sections.push(`## Agents
+`);
+    sections.push(`| Agent           | \u804C\u8D23                                                     | \u9ED8\u8BA4\u7B49\u7EA7 | \u6587\u4EF6                                           |`);
+    sections.push(`| --------------- | -------------------------------------------------------- | -------- | ---------------------------------------------- |`);
+    for (const agent of agents) {
+      const desc = agent.frontmatter.description || "";
+      const name = agent.frontmatter.name.padEnd(15);
+      const descPad = desc.padEnd(56);
+      sections.push(
+        `| **${agent.frontmatter.name}** | ${desc} | ${agent.frontmatter.autonomy} | [.opencode/agents/${agent.frontmatter.name}.md](.opencode/agents/${agent.frontmatter.name}.md) |`
+      );
+    }
+    sections.push(``);
+    sections.push(`---
+`);
+    sections.push(`## Skills
+`);
+    const coreSkills = skills.filter((s) => s.frontmatter.type === "capability");
+    const constraintSkills = skills.filter((s) => s.frontmatter.type === "constraint");
+    if (coreSkills.length > 0) {
+      sections.push(`### \u6838\u5FC3 Skills
+`);
+      sections.push(`| Skill     | \u7C7B\u578B       | \u8BF4\u660E                     | \u8DEF\u5F84                                           |`);
+      sections.push(`| --------- | ---------- | ------------------------ | ---------------------------------------------- |`);
+      for (const skill of coreSkills) {
+        const desc = skill.frontmatter.description || "";
+        sections.push(
+          `| ${skill.frontmatter.name} | ${skill.frontmatter.type} | ${desc} | [.opencode/skills/${skill.frontmatter.name}/](.opencode/skills/${skill.frontmatter.name}/SKILL.md) |`
+        );
+      }
+      sections.push(``);
+    }
+    if (constraintSkills.length > 0) {
+      sections.push(`### \u901A\u7528\u7EA6\u675F Skills
+`);
+      sections.push(`| Skill              | \u7C7B\u578B       | \u8BF4\u660E                  | \u8DEF\u5F84                                                             |`);
+      sections.push(`| ------------------ | ---------- | --------------------- | ---------------------------------------------------------------- |`);
+      for (const skill of constraintSkills) {
+        const desc = skill.frontmatter.description || "";
+        sections.push(
+          `| ${skill.frontmatter.name} | ${skill.frontmatter.type} | ${desc} | [.opencode/skills/${skill.frontmatter.name}/](.opencode/skills/${skill.frontmatter.name}/SKILL.md) |`
+        );
+      }
+      sections.push(``);
+    }
+    sections.push(`---
+`);
+    sections.push(`## Workflows
+`);
+    sections.push(`| Workflow      | \u8BF4\u660E                                            | \u6587\u4EF6                                             |`);
+    sections.push(`| ------------- | ----------------------------------------------- | ------------------------------------------------ |`);
+    for (const wf of workflows) {
+      const desc = wf.frontmatter.description || "";
+      sections.push(
+        `| **${wf.frontmatter.name}** | ${desc} | [.opencode/workflows/${wf.frontmatter.name}.md](.opencode/workflows/${wf.frontmatter.name}.md) |`
+      );
+    }
+    sections.push(``);
+    return sections.join("\n");
+  }
+};
+
+// ../platform-claude-code/dist/index.js
+import { writeFile as writeFile4, mkdir as mkdir5 } from "fs/promises";
+import { join as join8 } from "path";
+var ClaudeCodeAdapter = class {
+  name = "claude-code";
+  async sync(context) {
+    const { projectRoot, agents, skills, workflows } = context;
+    const result = { files: [], warnings: [] };
+    const claudeDir = join8(projectRoot, ".claude");
+    await mkdir5(join8(claudeDir, "agents"), { recursive: true });
+    await mkdir5(join8(claudeDir, "skills"), { recursive: true });
+    await mkdir5(join8(claudeDir, "workflows"), { recursive: true });
+    const claudeMdContent = this.generateClaudeMd(context);
+    const claudeMdPath = join8(projectRoot, "CLAUDE.md");
+    await writeFile4(claudeMdPath, claudeMdContent, "utf-8");
+    result.files.push({ path: "CLAUDE.md", action: "created" });
+    const settingsPath = join8(claudeDir, "settings.json");
+    const settings = {
+      permissions: {
+        allow: [
+          "Read",
+          "Edit",
+          "Write",
+          "Bash(git *)",
+          "Bash(pnpm *)",
+          "Bash(npm *)"
+        ],
+        deny: [
+          "Bash(rm -rf /)",
+          "Bash(git push --force)"
+        ]
+      }
+    };
+    await writeFile4(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
+    result.files.push({ path: ".claude/settings.json", action: "created" });
+    for (const agent of agents) {
+      if (agent.frontmatter.name === "lead") continue;
+      const content = this.transformAgent(agent);
+      const filePath = join8(claudeDir, "agents", `${agent.frontmatter.name}.md`);
+      await writeFile4(filePath, content, "utf-8");
+      result.files.push({
+        path: `.claude/agents/${agent.frontmatter.name}.md`,
+        action: "created"
+      });
+    }
+    for (const skill of skills) {
+      const skillDir = join8(claudeDir, "skills", skill.frontmatter.name);
+      await mkdir5(skillDir, { recursive: true });
+      const content = this.transformSkill(skill);
+      await writeFile4(join8(skillDir, "SKILL.md"), content, "utf-8");
+      result.files.push({
+        path: `.claude/skills/${skill.frontmatter.name}/SKILL.md`,
+        action: "created"
+      });
+      if (skill.subFiles) {
+        for (const sub of skill.subFiles) {
+          await writeFile4(join8(skillDir, sub.name), sub.content, "utf-8");
+        }
+      }
+    }
+    for (const wf of workflows) {
+      const content = this.transformWorkflow(wf);
+      const filePath = join8(claudeDir, "workflows", `${wf.frontmatter.name}.md`);
+      await writeFile4(filePath, content, "utf-8");
+      result.files.push({
+        path: `.claude/workflows/${wf.frontmatter.name}.md`,
+        action: "created"
+      });
+    }
+    return result;
+  }
+  getDefaultConfig() {
+    return {
+      platform: "claude-code",
+      output: {
+        directory: ".claude",
+        entry_file: "CLAUDE.md",
+        agent_format: "single-file"
+      },
+      mapping: {
+        skill_injection: "inline"
+      },
+      sync: {
+        auto: true,
+        watch: false,
+        on_conflict: "overwrite"
+      },
+      platform_specific: {}
+    };
+  }
+  /**
+   * 转译 Agent 为 Claude Code subagent 格式
+   */
+  transformAgent(agent) {
+    const fm = agent.frontmatter;
+    const lines = [];
+    lines.push(`# ${fm.name}
+`);
+    if (fm.description) {
+      lines.push(`${fm.description}
+`);
+    }
+    lines.push(`## \u914D\u7F6E
+`);
+    if (fm.scope) {
+      const scope = Array.isArray(fm.scope) ? fm.scope.join(", ") : fm.scope;
+      lines.push(`- **Scope**: ${scope}`);
+    }
+    lines.push(`- **Autonomy**: ${fm.autonomy}`);
+    if (fm.required_skills.length > 0) {
+      lines.push(`- **Required Skills**: ${fm.required_skills.join(", ")}`);
+    }
+    if (fm.optional_skills.length > 0) {
+      lines.push(`- **Optional Skills**: ${fm.optional_skills.join(", ")}`);
+    }
+    if (fm.delegates_to.length > 0) {
+      lines.push(`- **Delegates To**: ${fm.delegates_to.join(", ")}`);
+    }
+    lines.push(``);
+    if (agent.body) {
+      lines.push(`## \u6307\u4EE4
+`);
+      lines.push(agent.body);
+    }
+    return lines.join("\n");
+  }
+  /**
+   * 转译 Skill 为 Claude Code 格式（保持原内容，去除不兼容字段）
+   */
+  transformSkill(skill) {
+    const fm = skill.frontmatter;
+    const lines = [];
+    lines.push(`# ${fm.name}
+`);
+    if (fm.description) {
+      lines.push(`${fm.description}
+`);
+    }
+    lines.push(`- **Type**: ${fm.type}`);
+    if (fm.applies_to) {
+      const applies = Array.isArray(fm.applies_to) ? fm.applies_to.join(", ") : fm.applies_to;
+      lines.push(`- **Applies To**: ${applies}`);
+    }
+    lines.push(``);
+    if (skill.body) {
+      lines.push(skill.body);
+    }
+    return lines.join("\n");
+  }
+  /**
+   * 转译 Workflow
+   */
+  transformWorkflow(wf) {
+    const fm = wf.frontmatter;
+    const lines = [];
+    lines.push(`# ${fm.name}
+`);
+    if (fm.description) {
+      lines.push(`${fm.description}
+`);
+    }
+    lines.push(`## \u6B65\u9AA4
+`);
+    for (let i = 0; i < fm.steps.length; i++) {
+      const step = fm.steps[i];
+      lines.push(`${i + 1}. **${step.agent}** \u2192 ${step.action} (${step.autonomy || "\u7EE7\u627F\u9ED8\u8BA4"})`);
+      if (step.gate?.message) {
+        lines.push(`   - Gate: ${step.gate.message}`);
+      }
+      if (step.on_fail !== "retry") {
+        lines.push(`   - On Fail: ${step.on_fail}`);
+      }
+    }
+    lines.push(``);
+    if (wf.body) {
+      lines.push(`---
+`);
+      lines.push(wf.body);
+    }
+    return lines.join("\n");
+  }
+  /**
+   * 生成 CLAUDE.md 入口文件
+   */
+  generateClaudeMd(context) {
+    const { config, agents, skills, workflows } = context;
+    const sections = [];
+    sections.push(`# CLAUDE.md
+`);
+    sections.push(
+      `> \u672C\u6587\u4EF6\u7531 KQ-Forge \u81EA\u52A8\u751F\u6210\uFF0C\u8BF7\u52FF\u624B\u52A8\u7F16\u8F91\u3002\u4FEE\u6539 \`.kqforge/config.yaml\` \u540E\u8FD0\u884C \`kq-forge sync\` \u91CD\u65B0\u540C\u6B65\u3002
+`
+    );
+    sections.push(`---
+`);
+    sections.push(`## \u9879\u76EE\u534F\u4F5C\u89C4\u5219
+`);
+    sections.push(
+      `\u4EE5\u4E0B\u89C4\u5219\u5BF9\u6240\u6709 Agent \u751F\u6548\uFF0C\u4E0D\u53EF\u88AB\u5355\u4E2A Agent \u6216 Workflow \u8986\u76D6\u3002
+`
+    );
+    sections.push(`### \u57FA\u672C\u539F\u5219
+`);
+    sections.push(
+      `1. **\u4EE5\u4EBA\u4E3A\u672C** \u2014 \u4EBA\u7C7B\u662F\u6700\u7EC8\u51B3\u7B56\u8005\u3002\u4EFB\u4F55 Agent \u5728\u4E0D\u786E\u5B9A\u65F6\u5E94\u8BF7\u6C42\u6F84\u6E05\u800C\u975E\u731C\u6D4B\u3002`
+    );
+    sections.push(
+      `2. **\u56E0\u5730\u5236\u5B9C** \u2014 \u4E0D\u540C\u4EFB\u52A1\u4F7F\u7528\u4E0D\u540C\u7684 autonomy level\uFF0C\u4E0D\u5B58\u5728"\u4E00\u5200\u5207"\u7684\u6700\u4F18\u6A21\u5F0F\u3002`
+    );
+    sections.push(
+      `3. **\u5B9E\u4E8B\u6C42\u662F** \u2014 \u72AF\u9519\u4E0D\u53EF\u6015\uFF0C\u9690\u7792\u9519\u8BEF\u4E0D\u53EF\u63A5\u53D7\u3002\u53D1\u73B0\u95EE\u9898\u7ACB\u5373\u4E0A\u62A5\u3002
+`
+    );
+    sections.push(`### Autonomy Level \u7EA6\u5B9A
+`);
+    sections.push(`| \u7B49\u7EA7   | \u6A21\u5F0F     | \u4EBA\u7C7B\u89D2\u8272                     | \u9002\u7528\u573A\u666F             |`);
+    sections.push(`| ------ | -------- | ---------------------------- | -------------------- |`);
+    sections.push(`| **L0** | \u5168\u624B\u52A8   | Agent \u5EFA\u8BAE\uFF0C\u4EBA\u6267\u884C           | \u9AD8\u98CE\u9669\u53D8\u66F4\u3001\u67B6\u6784\u51B3\u7B56 |`);
+    sections.push(`| **L1** | \u534A\u81EA\u52A8   | Agent \u6267\u884C\uFF0C\u5173\u952E\u8282\u70B9\u7B49\u4EBA\u786E\u8BA4 | \u5E38\u89C4\u529F\u80FD\u5F00\u53D1         |`);
+    sections.push(`| **L2** | \u76D1\u7763\u81EA\u52A8 | Agent \u5168\u81EA\u52A8\uFF0C\u4EBA\u5F02\u6B65 review  | \u6279\u91CF\u4EFB\u52A1\u3001\u91CD\u6784       |`);
+    sections.push(`| **L3** | \u5168\u81EA\u52A8   | Agent \u81EA\u4E3B\u5B8C\u6210\uFF0C\u4EC5\u5931\u8D25\u65F6\u901A\u77E5 | \u673A\u68B0\u6027\u4EFB\u52A1\u3001\u683C\u5F0F\u5316   |
+`);
+    sections.push(`\u9ED8\u8BA4\u7B49\u7EA7\uFF1A**${config.defaults.autonomy}**
+`);
+    sections.push(`### \u5BF9\u6297\u4E09\u89D2\u7EA6\u5B9A
+`);
+    sections.push(`- Writer\uFF08\u6267\u884C\u8005\uFF09\u4E0D\u80FD review \u81EA\u5DF1\u7684\u4EA7\u51FA`);
+    sections.push(`- Reviewer\uFF08\u5BA1\u67E5\u8005\uFF09\u53EA\u8BFB\uFF0C\u4E0D\u80FD\u76F4\u63A5\u4FEE\u6539\u4EE3\u7801`);
+    sections.push(`- Judge\uFF08\u88C1\u51B3\u8005\uFF09\u72EC\u7ACB\u4E8E Writer \u548C Reviewer\uFF0C\u505A\u6700\u7EC8\u88C1\u51B3`);
+    sections.push(
+      `- \u5BF9\u6297\u8F6E\u6B21\u6709\u4E0A\u9650\uFF08\u9ED8\u8BA4 \`round_cap: ${config.defaults.round_cap}\`\uFF09\uFF0C\u8FBE\u5230\u4E0A\u9650\u540E Judge \u5F3A\u5236\u88C1\u51B3
+`
+    );
+    sections.push(`### \u8BB0\u5FC6\u6C89\u6DC0\u89E6\u53D1\u6761\u4EF6
+`);
+    sections.push(
+      `\u4EE5\u4E0B\u60C5\u51B5\u5FC5\u987B\u89E6\u53D1\u8BB0\u5FC6\u6C89\u6DC0\uFF08\u5199\u5165 \`.kqforge/memory/\`\uFF09\uFF1A
+`
+    );
+    sections.push(`- \u53D1\u73B0\u9879\u76EE\u7EA7\u7EA6\u675F\u6216\u7EA6\u5B9A\uFF08\u5982"\u672C\u9879\u76EE\u7528 pnpm"\uFF09`);
+    sections.push(`- \u72AF\u9519\u540E\u7684\u6839\u56E0\u5206\u6790\u7ED3\u8BBA`);
+    sections.push(`- \u4EBA\u7C7B\u660E\u786E\u6307\u51FA\u7684\u504F\u597D\u6216\u89C4\u5219`);
+    sections.push(`- \u53CD\u590D\u51FA\u73B0\u7684\u6A21\u5F0F\uFF08\u7B2C\u4E8C\u6B21\u9047\u5230\u65F6\u6C89\u6DC0\uFF09
+`);
+    sections.push(`---
+`);
+    sections.push(`## \u81EA\u5B9A\u4E49\u89C4\u5219
+`);
+    sections.push(`\u5168\u7A0B\u4F7F\u7528\u4E2D\u6587\u3002
+`);
+    sections.push(`---
+`);
+    sections.push(`## Agents
+`);
+    sections.push(`| Agent           | \u804C\u8D23                                                     | \u9ED8\u8BA4\u7B49\u7EA7 | \u6587\u4EF6                                           |`);
+    sections.push(`| --------------- | -------------------------------------------------------- | -------- | ---------------------------------------------- |`);
+    for (const agent of agents) {
+      const desc = agent.frontmatter.description || "";
+      const file = agent.frontmatter.name === "lead" ? "(\u89C4\u5219\u5185\u5D4C\u4E8E\u672C\u6587\u4EF6)" : `[.claude/agents/${agent.frontmatter.name}.md](.claude/agents/${agent.frontmatter.name}.md)`;
+      sections.push(
+        `| **${agent.frontmatter.name}** | ${desc} | ${agent.frontmatter.autonomy} | ${file} |`
+      );
+    }
+    sections.push(``);
+    sections.push(`---
+`);
+    sections.push(`## Skills
+`);
+    const constraintSkills = skills.filter((s) => s.frontmatter.type === "constraint");
+    const capabilitySkills = skills.filter((s) => s.frontmatter.type === "capability");
+    if (constraintSkills.length > 0) {
+      sections.push(`### \u7EA6\u675F\u7C7B Skills\uFF08\u59CB\u7EC8\u751F\u6548\uFF09
+`);
+      sections.push(`| Skill              | \u8BF4\u660E                  | \u8DEF\u5F84                                                             |`);
+      sections.push(`| ------------------ | --------------------- | ---------------------------------------------------------------- |`);
+      for (const skill of constraintSkills) {
+        const desc = skill.frontmatter.description || "";
+        sections.push(
+          `| ${skill.frontmatter.name} | ${desc} | [.claude/skills/${skill.frontmatter.name}/](.claude/skills/${skill.frontmatter.name}/SKILL.md) |`
+        );
+      }
+      sections.push(``);
+    }
+    if (capabilitySkills.length > 0) {
+      sections.push(`### \u80FD\u529B\u7C7B Skills\uFF08\u6309\u9700\u52A0\u8F7D\uFF09
+`);
+      sections.push(`| Skill     | \u8BF4\u660E                     | \u8DEF\u5F84                                           |`);
+      sections.push(`| --------- | ------------------------ | ---------------------------------------------- |`);
+      for (const skill of capabilitySkills) {
+        const desc = skill.frontmatter.description || "";
+        sections.push(
+          `| ${skill.frontmatter.name} | ${desc} | [.claude/skills/${skill.frontmatter.name}/](.claude/skills/${skill.frontmatter.name}/SKILL.md) |`
+        );
+      }
+      sections.push(``);
+    }
+    sections.push(`---
+`);
+    sections.push(`## Workflows
+`);
+    sections.push(`| Workflow      | \u8BF4\u660E                                            | \u6587\u4EF6                                             |`);
+    sections.push(`| ------------- | ----------------------------------------------- | ------------------------------------------------ |`);
+    for (const wf of workflows) {
+      const desc = wf.frontmatter.description || "";
+      sections.push(
+        `| **${wf.frontmatter.name}** | ${desc} | [.claude/workflows/${wf.frontmatter.name}.md](.claude/workflows/${wf.frontmatter.name}.md) |`
+      );
+    }
+    sections.push(``);
+    return sections.join("\n");
+  }
+};
+
+// ../platform-codex/dist/index.js
+import { writeFile as writeFile5 } from "fs/promises";
+import { join as join9 } from "path";
+var CodexAdapter = class {
+  name = "codex";
+  async sync(context) {
+    const { projectRoot } = context;
+    const result = { files: [], warnings: [] };
+    const content = this.generateAgentsMd(context);
+    const filePath = join9(projectRoot, "AGENTS.md");
+    await writeFile5(filePath, content, "utf-8");
+    result.files.push({ path: "AGENTS.md", action: "created" });
+    return result;
+  }
+  getDefaultConfig() {
+    return {
+      platform: "codex",
+      output: {
+        directory: ".",
+        entry_file: "AGENTS.md",
+        agent_format: "single-file"
+      },
+      mapping: {
+        skill_injection: "inline"
+      },
+      sync: {
+        auto: true,
+        watch: false,
+        on_conflict: "overwrite"
+      },
+      platform_specific: {}
+    };
+  }
+  generateAgentsMd(context) {
+    const { config, agents, skills, workflows } = context;
+    const sections = [];
+    sections.push(`# AGENTS.md
+`);
+    sections.push(
+      `> \u672C\u6587\u4EF6\u7531 KQ-Forge \u81EA\u52A8\u751F\u6210\uFF0C\u8BF7\u52FF\u624B\u52A8\u7F16\u8F91\u3002\u4FEE\u6539 \`.kqforge/config.yaml\` \u540E\u8FD0\u884C \`kq-forge sync\` \u91CD\u65B0\u540C\u6B65\u3002
+`
+    );
+    sections.push(`---
+`);
+    sections.push(`## \u9879\u76EE\u534F\u4F5C\u89C4\u5219
+`);
+    sections.push(
+      `\u4EE5\u4E0B\u89C4\u5219\u5BF9\u6240\u6709 Agent \u751F\u6548\uFF0C\u4E0D\u53EF\u88AB\u5355\u4E2A Agent \u6216 Workflow \u8986\u76D6\u3002
+`
+    );
+    sections.push(`### \u57FA\u672C\u539F\u5219
+`);
+    sections.push(
+      `1. **\u4EE5\u4EBA\u4E3A\u672C** \u2014 \u4EBA\u7C7B\u662F\u6700\u7EC8\u51B3\u7B56\u8005\u3002\u4EFB\u4F55 Agent \u5728\u4E0D\u786E\u5B9A\u65F6\u5E94\u8BF7\u6C42\u6F84\u6E05\u800C\u975E\u731C\u6D4B\u3002`
+    );
+    sections.push(
+      `2. **\u56E0\u5730\u5236\u5B9C** \u2014 \u4E0D\u540C\u4EFB\u52A1\u4F7F\u7528\u4E0D\u540C\u7684 autonomy level\uFF0C\u4E0D\u5B58\u5728"\u4E00\u5200\u5207"\u7684\u6700\u4F18\u6A21\u5F0F\u3002`
+    );
+    sections.push(
+      `3. **\u5B9E\u4E8B\u6C42\u662F** \u2014 \u72AF\u9519\u4E0D\u53EF\u6015\uFF0C\u9690\u7792\u9519\u8BEF\u4E0D\u53EF\u63A5\u53D7\u3002\u53D1\u73B0\u95EE\u9898\u7ACB\u5373\u4E0A\u62A5\u3002
+`
+    );
+    sections.push(`### Autonomy Level \u7EA6\u5B9A
+`);
+    sections.push(`| \u7B49\u7EA7   | \u6A21\u5F0F     | \u4EBA\u7C7B\u89D2\u8272                     | \u9002\u7528\u573A\u666F             |`);
+    sections.push(`| ------ | -------- | ---------------------------- | -------------------- |`);
+    sections.push(`| **L0** | \u5168\u624B\u52A8   | Agent \u5EFA\u8BAE\uFF0C\u4EBA\u6267\u884C           | \u9AD8\u98CE\u9669\u53D8\u66F4\u3001\u67B6\u6784\u51B3\u7B56 |`);
+    sections.push(`| **L1** | \u534A\u81EA\u52A8   | Agent \u6267\u884C\uFF0C\u5173\u952E\u8282\u70B9\u7B49\u4EBA\u786E\u8BA4 | \u5E38\u89C4\u529F\u80FD\u5F00\u53D1         |`);
+    sections.push(`| **L2** | \u76D1\u7763\u81EA\u52A8 | Agent \u5168\u81EA\u52A8\uFF0C\u4EBA\u5F02\u6B65 review  | \u6279\u91CF\u4EFB\u52A1\u3001\u91CD\u6784       |`);
+    sections.push(`| **L3** | \u5168\u81EA\u52A8   | Agent \u81EA\u4E3B\u5B8C\u6210\uFF0C\u4EC5\u5931\u8D25\u65F6\u901A\u77E5 | \u673A\u68B0\u6027\u4EFB\u52A1\u3001\u683C\u5F0F\u5316   |
+`);
+    sections.push(`\u9ED8\u8BA4\u7B49\u7EA7\uFF1A**${config.defaults.autonomy}**
+`);
+    sections.push(`### \u5BF9\u6297\u4E09\u89D2\u7EA6\u5B9A
+`);
+    sections.push(`- Writer\uFF08\u6267\u884C\u8005\uFF09\u4E0D\u80FD review \u81EA\u5DF1\u7684\u4EA7\u51FA`);
+    sections.push(`- Reviewer\uFF08\u5BA1\u67E5\u8005\uFF09\u53EA\u8BFB\uFF0C\u4E0D\u80FD\u76F4\u63A5\u4FEE\u6539\u4EE3\u7801`);
+    sections.push(`- Judge\uFF08\u88C1\u51B3\u8005\uFF09\u72EC\u7ACB\u4E8E Writer \u548C Reviewer\uFF0C\u505A\u6700\u7EC8\u88C1\u51B3`);
+    sections.push(
+      `- \u5BF9\u6297\u8F6E\u6B21\u6709\u4E0A\u9650\uFF08\u9ED8\u8BA4 \`round_cap: ${config.defaults.round_cap}\`\uFF09\uFF0C\u8FBE\u5230\u4E0A\u9650\u540E Judge \u5F3A\u5236\u88C1\u51B3
+`
+    );
+    sections.push(`### \u8BB0\u5FC6\u6C89\u6DC0\u89E6\u53D1\u6761\u4EF6
+`);
+    sections.push(
+      `\u4EE5\u4E0B\u60C5\u51B5\u5FC5\u987B\u89E6\u53D1\u8BB0\u5FC6\u6C89\u6DC0\uFF08\u5199\u5165 \`.kqforge/memory/\`\uFF09\uFF1A
+`
+    );
+    sections.push(`- \u53D1\u73B0\u9879\u76EE\u7EA7\u7EA6\u675F\u6216\u7EA6\u5B9A\uFF08\u5982"\u672C\u9879\u76EE\u7528 pnpm"\uFF09`);
+    sections.push(`- \u72AF\u9519\u540E\u7684\u6839\u56E0\u5206\u6790\u7ED3\u8BBA`);
+    sections.push(`- \u4EBA\u7C7B\u660E\u786E\u6307\u51FA\u7684\u504F\u597D\u6216\u89C4\u5219`);
+    sections.push(`- \u53CD\u590D\u51FA\u73B0\u7684\u6A21\u5F0F\uFF08\u7B2C\u4E8C\u6B21\u9047\u5230\u65F6\u6C89\u6DC0\uFF09
+`);
+    sections.push(`---
+`);
+    sections.push(`## \u81EA\u5B9A\u4E49\u89C4\u5219
+`);
+    sections.push(`\u5168\u7A0B\u4F7F\u7528\u4E2D\u6587\u3002
+`);
+    sections.push(`---
+`);
+    sections.push(`## Agents
+`);
+    for (const agent of agents) {
+      sections.push(`### ${agent.frontmatter.name}
+`);
+      if (agent.frontmatter.description) {
+        sections.push(`${agent.frontmatter.description}
+`);
+      }
+      const scope = Array.isArray(agent.frontmatter.scope) ? agent.frontmatter.scope.join(", ") : agent.frontmatter.scope;
+      sections.push(`- **Scope**: ${scope}`);
+      sections.push(`- **Autonomy**: ${agent.frontmatter.autonomy}`);
+      if (agent.frontmatter.required_skills.length > 0) {
+        sections.push(`- **Required Skills**: ${agent.frontmatter.required_skills.join(", ")}`);
+      }
+      if (agent.frontmatter.delegates_to.length > 0) {
+        sections.push(`- **Delegates To**: ${agent.frontmatter.delegates_to.join(", ")}`);
+      }
+      sections.push(``);
+      if (agent.body) {
+        sections.push(agent.body);
+        sections.push(``);
+      }
+    }
+    sections.push(`---
+`);
+    sections.push(`## Skills
+`);
+    const constraintSkills = skills.filter((s) => s.frontmatter.type === "constraint");
+    const capabilitySkills = skills.filter((s) => s.frontmatter.type === "capability");
+    if (constraintSkills.length > 0) {
+      sections.push(`### \u7EA6\u675F\u7C7B Skills\uFF08\u59CB\u7EC8\u751F\u6548\uFF09
+`);
+      for (const skill of constraintSkills) {
+        sections.push(`#### ${skill.frontmatter.name}
+`);
+        if (skill.frontmatter.description) {
+          sections.push(`${skill.frontmatter.description}
+`);
+        }
+        if (skill.body) {
+          sections.push(skill.body);
+          sections.push(``);
+        }
+      }
+    }
+    if (capabilitySkills.length > 0) {
+      sections.push(`### \u80FD\u529B\u7C7B Skills\uFF08\u6309\u9700\u52A0\u8F7D\uFF09
+`);
+      for (const skill of capabilitySkills) {
+        sections.push(`#### ${skill.frontmatter.name}
+`);
+        if (skill.frontmatter.description) {
+          sections.push(`${skill.frontmatter.description}
+`);
+        }
+        if (skill.body) {
+          sections.push(skill.body);
+          sections.push(``);
+        }
+      }
+    }
+    sections.push(`---
+`);
+    sections.push(`## Workflows
+`);
+    for (const wf of workflows) {
+      sections.push(`### ${wf.frontmatter.name}
+`);
+      if (wf.frontmatter.description) {
+        sections.push(`${wf.frontmatter.description}
+`);
+      }
+      sections.push(`**\u6B65\u9AA4**:
+`);
+      for (let i = 0; i < wf.frontmatter.steps.length; i++) {
+        const step = wf.frontmatter.steps[i];
+        sections.push(`${i + 1}. **${step.agent}** \u2192 ${step.action} (${step.autonomy || "\u7EE7\u627F\u9ED8\u8BA4"})`);
+      }
+      sections.push(``);
+      if (wf.body) {
+        sections.push(wf.body);
+        sections.push(``);
+      }
+    }
+    return sections.join("\n");
+  }
+};
+
+// src/sync.ts
+function getAdapter(platform) {
+  switch (platform) {
+    case "opencode":
+      return new OpenCodeAdapter();
+    case "claude-code":
+      return new ClaudeCodeAdapter();
+    case "codex":
+      return new CodexAdapter();
+    default:
+      throw new Error(`\u672A\u77E5\u5E73\u53F0: ${platform}`);
+  }
+}
+async function syncPlatforms(projectRoot) {
+  const context = await loadProjectContext(projectRoot);
+  const allResult = { platforms: [], warnings: [] };
+  if (context.config.platforms.length === 0) {
+    allResult.warnings.push("\u672A\u914D\u7F6E\u4EFB\u4F55\u5E73\u53F0\uFF0C\u8DF3\u8FC7\u540C\u6B65\u3002");
+    return allResult;
+  }
+  const needsAgentsMd = context.config.platforms.filter(
+    (p) => p === "opencode" || p === "codex"
+  );
+  if (needsAgentsMd.length > 1) {
+    allResult.warnings.push(
+      "OpenCode \u548C Codex \u90FD\u4F7F\u7528 AGENTS.md\uFF0C\u5C06\u751F\u6210\u5171\u7528\u7248\u672C\uFF08\u4EE5 OpenCode \u683C\u5F0F\u4E3A\u51C6\uFF0CCodex \u517C\u5BB9\uFF09\u3002"
+    );
+  }
+  for (const platform of context.config.platforms) {
+    const adapter = getAdapter(platform);
+    const syncContext = {
+      ...context,
+      platformConfig: adapter.getDefaultConfig()
+    };
+    const result = await adapter.sync(syncContext);
+    allResult.platforms.push({ name: platform, result });
+  }
+  return allResult;
+}
 
 // src/commands/init.ts
 var initCommand = defineCommand({
@@ -740,6 +1569,18 @@ var initCommand = defineCommand({
       for (const warning of result.warnings) {
         consola.warn(warning);
       }
+      if (platforms.length > 0) {
+        consola.start("\u540C\u6B65\u5E73\u53F0\u914D\u7F6E...");
+        const syncResult = await syncPlatforms(targetDir);
+        for (const warning of syncResult.warnings) {
+          consola.warn(warning);
+        }
+        for (const { name, result: platformResult } of syncResult.platforms) {
+          for (const file of platformResult.files) {
+            consola.success(`[${name}] ${file.action} ${file.path}`);
+          }
+        }
+      }
       consola.box(
         `KQ-Forge \u521D\u59CB\u5316\u5B8C\u6210\uFF01
 
@@ -749,6 +1590,7 @@ var initCommand = defineCommand({
 \u4E0B\u4E00\u6B65:
   kq-forge add-platform opencode  # \u6DFB\u52A0\u5E73\u53F0
   kq-forge add frontend           # \u6DFB\u52A0\u573A\u666F\u5305
+  kq-forge sync                   # \u91CD\u65B0\u540C\u6B65\u5E73\u53F0\u6587\u4EF6
   kq-forge status                 # \u67E5\u770B\u72B6\u6001`
       );
     } catch (e) {
@@ -783,11 +1625,26 @@ var addPlatformCommand = defineCommand2({
       process.exit(1);
     }
     const result = await addPlatform({ targetDir, platform });
-    if (result.success) {
-      consola2.success(result.message);
-    } else {
+    if (!result.success) {
       consola2.error(result.message);
       process.exit(1);
+    }
+    consola2.success(result.message);
+    consola2.start("\u540C\u6B65\u5E73\u53F0\u914D\u7F6E...");
+    try {
+      const syncResult = await syncPlatforms(targetDir);
+      for (const warning of syncResult.warnings) {
+        consola2.warn(warning);
+      }
+      for (const { name, result: platformResult } of syncResult.platforms) {
+        for (const file of platformResult.files) {
+          consola2.success(`[${name}] ${file.action} ${file.path}`);
+        }
+      }
+      consola2.success("\u5E73\u53F0\u540C\u6B65\u5B8C\u6210\u3002");
+    } catch (e) {
+      consola2.warn(`\u540C\u6B65\u5931\u8D25: ${e.message}`);
+      consola2.info("\u53EF\u7A0D\u540E\u624B\u52A8\u8FD0\u884C kq-forge sync");
     }
   }
 });
@@ -863,9 +1720,9 @@ var listPackagesCommand = defineCommand4({
 import { defineCommand as defineCommand5 } from "citty";
 import { consola as consola5 } from "consola";
 import { resolve as resolve5 } from "path";
-import { readdir as readdir2 } from "fs/promises";
-import { existsSync as existsSync6 } from "fs";
-import { join as join6 } from "path";
+import { readdir as readdir3 } from "fs/promises";
+import { existsSync as existsSync7 } from "fs";
+import { join as join10 } from "path";
 var statusCommand = defineCommand5({
   meta: {
     name: "status",
@@ -879,12 +1736,12 @@ var statusCommand = defineCommand5({
     }
     try {
       const config = await loadConfig(targetDir);
-      const agentCount = await countFiles(join6(targetDir, "agents"), ".md");
+      const agentCount = await countFiles(join10(targetDir, "agents"), ".md");
       const workflowCount = await countFiles(
-        join6(targetDir, "workflows"),
+        join10(targetDir, "workflows"),
         ".md"
       );
-      const skillCount = await countDirs(join6(targetDir, "skills"));
+      const skillCount = await countDirs(join10(targetDir, "skills"));
       console.log();
       console.log(`  \u9879\u76EE: ${config.project.name}`);
       if (config.project.description) {
@@ -911,13 +1768,13 @@ var statusCommand = defineCommand5({
   }
 });
 async function countFiles(dir, ext) {
-  if (!existsSync6(dir)) return 0;
-  const files = await readdir2(dir);
+  if (!existsSync7(dir)) return 0;
+  const files = await readdir3(dir);
   return files.filter((f) => f.endsWith(ext)).length;
 }
 async function countDirs(dir) {
-  if (!existsSync6(dir)) return 0;
-  const entries = await readdir2(dir, { withFileTypes: true });
+  if (!existsSync7(dir)) return 0;
+  const entries = await readdir3(dir, { withFileTypes: true });
   return entries.filter((e) => e.isDirectory()).length;
 }
 
@@ -966,8 +1823,53 @@ var validateCommand = defineCommand6({
   }
 });
 
+// src/commands/sync.ts
+import { defineCommand as defineCommand7 } from "citty";
+import { consola as consola7 } from "consola";
+import { resolve as resolve7 } from "path";
+var syncCommand = defineCommand7({
+  meta: {
+    name: "sync",
+    description: "\u5C06 .kqforge/ \u6E90\u6587\u4EF6\u540C\u6B65\u5230\u5404\u5E73\u53F0\u539F\u751F\u683C\u5F0F"
+  },
+  args: {},
+  async run() {
+    const targetDir = resolve7(".");
+    if (!isInitialized(targetDir)) {
+      consola7.error("\u9879\u76EE\u672A\u521D\u59CB\u5316\u3002\u8BF7\u5148\u8FD0\u884C kq-forge init\u3002");
+      process.exit(1);
+    }
+    consola7.start("\u540C\u6B65\u5E73\u53F0\u914D\u7F6E...");
+    try {
+      const result = await syncPlatforms(targetDir);
+      for (const warning of result.warnings) {
+        consola7.warn(warning);
+      }
+      for (const { name, result: platformResult } of result.platforms) {
+        consola7.info(`[${name}]`);
+        for (const file of platformResult.files) {
+          consola7.success(`  ${file.action} ${file.path}`);
+        }
+        for (const warning of platformResult.warnings) {
+          consola7.warn(`  ${warning}`);
+        }
+      }
+      const totalFiles = result.platforms.reduce(
+        (sum, p) => sum + p.result.files.length,
+        0
+      );
+      consola7.success(
+        `\u540C\u6B65\u5B8C\u6210\uFF1A${result.platforms.length} \u4E2A\u5E73\u53F0\uFF0C${totalFiles} \u4E2A\u6587\u4EF6\u3002`
+      );
+    } catch (e) {
+      consola7.error(e.message);
+      process.exit(1);
+    }
+  }
+});
+
 // src/index.ts
-var main = defineCommand7({
+var main = defineCommand8({
   meta: {
     name: "kq-forge",
     version: "0.1.0",
@@ -979,7 +1881,8 @@ var main = defineCommand7({
     add: addCommand,
     "list-packages": listPackagesCommand,
     status: statusCommand,
-    validate: validateCommand
+    validate: validateCommand,
+    sync: syncCommand
   }
 });
 runMain(main);

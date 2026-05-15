@@ -45,6 +45,9 @@ export type { AddPackageOptions, AddPackageResult } from "./scaffold/add-package
 // Platform
 export type { PlatformAdapter, SyncContext, SyncResult } from "./platform/adapter.js";
 
+// Context
+export { loadProjectContext } from "./context.js";
+
 // Registry
 export { listPackages, getPackage } from "./registry/packages.js";
 export type { PackageInfo } from "./registry/packages.js";

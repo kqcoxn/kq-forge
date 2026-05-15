@@ -1,40 +1,85 @@
-import { writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir, cp } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import type {
   PlatformAdapter,
   SyncContext,
   SyncResult,
   PlatformConfig,
+  AgentDefinition,
+  SkillDefinition,
+  WorkflowDefinition,
 } from "@kq-forge/core";
 
 /**
  * OpenCode 平台适配器
  *
- * OpenCode 的配置结构：
- * - AGENTS.md — 入口文件（项目根）
- * - .opencode/ — 配置目录（可选）
- *   - agents.md — Agent 定义（可选，也可直接用 AGENTS.md）
- *
- * OpenCode 读取 AGENTS.md 作为主要的 agent 指令来源。
- * 适配策略：将 KQ-Forge 的 agents/skills/workflows 合并生成一个完整的 AGENTS.md。
+ * 输出结构：
+ * - AGENTS.md — 协作规则 + agent/skill/workflow 索引表
+ * - .opencode/agents/*.md — 转译后的 agent 定义（OpenCode frontmatter 格式）
+ * - .opencode/skills/<name>/SKILL.md — 转译后的 skills
+ * - .opencode/workflows/*.md — workflow 文件（OpenCode 无原生 workflow，放 skills 同级）
  */
 export class OpenCodeAdapter implements PlatformAdapter {
   readonly name = "opencode" as const;
 
   async sync(context: SyncContext): Promise<SyncResult> {
-    const { projectRoot, config, agents, skills, workflows } = context;
+    const { projectRoot, agents, skills, workflows } = context;
     const result: SyncResult = { files: [], warnings: [] };
 
-    // 生成 AGENTS.md（OpenCode 的主入口）
+    // 创建 .opencode 目录结构
+    const opencodeDir = join(projectRoot, ".opencode");
+    await mkdir(join(opencodeDir, "agents"), { recursive: true });
+    await mkdir(join(opencodeDir, "skills"), { recursive: true });
+    await mkdir(join(opencodeDir, "workflows"), { recursive: true });
+
+    // 1. 生成 AGENTS.md（索引入口）
     const agentsMdContent = this.generateAgentsMd(context);
     const agentsMdPath = join(projectRoot, "AGENTS.md");
-
     await writeFile(agentsMdPath, agentsMdContent, "utf-8");
-    result.files.push({
-      path: "AGENTS.md",
-      action: existsSync(agentsMdPath) ? "updated" : "created",
-    });
+    result.files.push({ path: "AGENTS.md", action: "created" });
+
+    // 2. 生成 .opencode/agents/*.md
+    for (const agent of agents) {
+      const content = this.transformAgent(agent);
+      const filePath = join(opencodeDir, "agents", `${agent.frontmatter.name}.md`);
+      await writeFile(filePath, content, "utf-8");
+      result.files.push({
+        path: `.opencode/agents/${agent.frontmatter.name}.md`,
+        action: "created",
+      });
+    }
+
+    // 3. 生成 .opencode/skills/<name>/SKILL.md
+    for (const skill of skills) {
+      const skillDir = join(opencodeDir, "skills", skill.frontmatter.name);
+      await mkdir(skillDir, { recursive: true });
+
+      const content = this.transformSkill(skill);
+      await writeFile(join(skillDir, "SKILL.md"), content, "utf-8");
+      result.files.push({
+        path: `.opencode/skills/${skill.frontmatter.name}/SKILL.md`,
+        action: "created",
+      });
+
+      // 复制子文件
+      if (skill.subFiles) {
+        for (const sub of skill.subFiles) {
+          await writeFile(join(skillDir, sub.name), sub.content, "utf-8");
+        }
+      }
+    }
+
+    // 4. 生成 .opencode/workflows/*.md
+    for (const wf of workflows) {
+      const content = this.transformWorkflow(wf);
+      const filePath = join(opencodeDir, "workflows", `${wf.frontmatter.name}.md`);
+      await writeFile(filePath, content, "utf-8");
+      result.files.push({
+        path: `.opencode/workflows/${wf.frontmatter.name}.md`,
+        action: "created",
+      });
+    }
 
     return result;
   }
@@ -43,7 +88,7 @@ export class OpenCodeAdapter implements PlatformAdapter {
     return {
       platform: "opencode",
       output: {
-        directory: ".",
+        directory: ".opencode",
         entry_file: "AGENTS.md",
         agent_format: "single-file",
       },
@@ -59,14 +104,127 @@ export class OpenCodeAdapter implements PlatformAdapter {
     };
   }
 
+  /**
+   * 转译 Agent 为 OpenCode 格式
+   * OpenCode agent frontmatter: name, description, (自定义字段写入 body)
+   */
+  private transformAgent(agent: AgentDefinition): string {
+    const fm = agent.frontmatter;
+    const lines: string[] = [];
+
+    lines.push(`---`);
+    lines.push(`name: ${fm.name}`);
+    if (fm.description) {
+      lines.push(`description: ${fm.description}`);
+    }
+    lines.push(`---`);
+    lines.push(``);
+
+    // 元信息写入 body
+    lines.push(`# ${fm.name}\n`);
+
+    if (fm.scope) {
+      const scope = Array.isArray(fm.scope) ? fm.scope.join(", ") : fm.scope;
+      lines.push(`**Scope**: ${scope}\n`);
+    }
+    lines.push(`**Autonomy**: ${fm.autonomy}\n`);
+
+    if (fm.required_skills.length > 0) {
+      lines.push(`**Required Skills**: ${fm.required_skills.join(", ")}\n`);
+    }
+    if (fm.optional_skills.length > 0) {
+      lines.push(`**Optional Skills**: ${fm.optional_skills.join(", ")}\n`);
+    }
+    if (fm.delegates_to.length > 0) {
+      lines.push(`**Delegates To**: ${fm.delegates_to.join(", ")}\n`);
+    }
+
+    // 原始 body 内容
+    if (agent.body) {
+      lines.push(`---\n`);
+      lines.push(agent.body);
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
+   * 转译 Skill 为 OpenCode 格式
+   * OpenCode skill frontmatter: 只保留 name + description
+   */
+  private transformSkill(skill: SkillDefinition): string {
+    const fm = skill.frontmatter;
+    const lines: string[] = [];
+
+    lines.push(`---`);
+    lines.push(`name: ${fm.name}`);
+    if (fm.description) {
+      lines.push(`description: ${fm.description}`);
+    }
+    lines.push(`---`);
+    lines.push(``);
+
+    // 原始 body 内容
+    if (skill.body) {
+      lines.push(skill.body);
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
+   * 转译 Workflow（OpenCode 无原生 workflow 概念，保持原格式）
+   */
+  private transformWorkflow(wf: WorkflowDefinition): string {
+    const fm = wf.frontmatter;
+    const lines: string[] = [];
+
+    lines.push(`---`);
+    lines.push(`name: ${fm.name}`);
+    if (fm.description) {
+      lines.push(`description: ${fm.description}`);
+    }
+    lines.push(`---`);
+    lines.push(``);
+
+    // 步骤摘要
+    lines.push(`# ${fm.name}\n`);
+    if (fm.description) {
+      lines.push(`${fm.description}\n`);
+    }
+
+    lines.push(`## 步骤\n`);
+    for (let i = 0; i < fm.steps.length; i++) {
+      const step = fm.steps[i];
+      lines.push(`${i + 1}. **${step.agent}** → ${step.action} (${step.autonomy || "继承默认"})`);
+      if (step.gate?.message) {
+        lines.push(`   - Gate: ${step.gate.message}`);
+      }
+      if (step.on_fail !== "retry") {
+        lines.push(`   - On Fail: ${step.on_fail}`);
+      }
+    }
+    lines.push(``);
+
+    // 原始 body 内容
+    if (wf.body) {
+      lines.push(`---\n`);
+      lines.push(wf.body);
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
+   * 生成 AGENTS.md 索引入口
+   */
   private generateAgentsMd(context: SyncContext): string {
     const { config, agents, skills, workflows } = context;
     const sections: string[] = [];
 
-    // Header
     sections.push(`# AGENTS.md\n`);
     sections.push(
-      `> 本文件由 KQ-Forge 自动生成，请勿手动编辑。修改 .kqforge/config.yaml 后重新同步。\n`
+      `> 本文件由 KQ-Forge 自动生成，请勿手动编辑。修改 \`.kqforge/config.yaml\` 后运行 \`kq-forge sync\` 重新同步。\n`
     );
 
     // 项目协作规则
@@ -88,21 +246,13 @@ export class OpenCodeAdapter implements PlatformAdapter {
 
     // Autonomy Level
     sections.push(`### Autonomy Level 约定\n`);
-    sections.push(`| 等级 | 模式 | 人类角色 | 适用场景 |`);
-    sections.push(`|------|------|---------|---------|`);
-    sections.push(
-      `| **L0** | 全手动 | Agent 建议，人执行 | 高风险变更、架构决策 |`
-    );
-    sections.push(
-      `| **L1** | 半自动 | Agent 执行，关键节点等人确认 | 常规功能开发 |`
-    );
-    sections.push(
-      `| **L2** | 监督自动 | Agent 全自动，人异步 review | 批量任务、重构 |`
-    );
-    sections.push(
-      `| **L3** | 全自动 | Agent 自主完成，仅失败时通知 | 机械性任务、格式化 |\n`
-    );
-    sections.push(`默认等级：**${config.defaults.autonomy}**\n`);
+    sections.push(`| 等级   | 模式     | 人类角色                     | 适用场景             |`);
+    sections.push(`| ------ | -------- | ---------------------------- | -------------------- |`);
+    sections.push(`| **L0** | 全手动   | Agent 建议，人执行           | 高风险变更、架构决策 |`);
+    sections.push(`| **L1** | 半自动   | Agent 执行，关键节点等人确认 | 常规功能开发         |`);
+    sections.push(`| **L2** | 监督自动 | Agent 全自动，人异步 review  | 批量任务、重构       |`);
+    sections.push(`| **L3** | 全自动   | Agent 自主完成，仅失败时通知 | 机械性任务、格式化   |\n`);
+    sections.push(`默认等级：**${config.defaults.autonomy}**（可在 \`.kqforge/config.yaml\` 中修改）。\n`);
 
     // 对抗三角
     sections.push(`### 对抗三角约定\n`);
@@ -131,12 +281,14 @@ export class OpenCodeAdapter implements PlatformAdapter {
     // Agents 索引
     sections.push(`---\n`);
     sections.push(`## Agents\n`);
-    sections.push(`| Agent | 职责 | 默认等级 | 文件 |`);
-    sections.push(`|-------|------|---------|------|`);
+    sections.push(`| Agent           | 职责                                                     | 默认等级 | 文件                                           |`);
+    sections.push(`| --------------- | -------------------------------------------------------- | -------- | ---------------------------------------------- |`);
     for (const agent of agents) {
       const desc = agent.frontmatter.description || "";
+      const name = agent.frontmatter.name.padEnd(15);
+      const descPad = desc.padEnd(56);
       sections.push(
-        `| **${agent.frontmatter.name}** | ${desc} | ${agent.frontmatter.autonomy} | [agents/${agent.frontmatter.name}.md](agents/${agent.frontmatter.name}.md) |`
+        `| **${agent.frontmatter.name}** | ${desc} | ${agent.frontmatter.autonomy} | [.opencode/agents/${agent.frontmatter.name}.md](.opencode/agents/${agent.frontmatter.name}.md) |`
       );
     }
     sections.push(``);
@@ -144,25 +296,45 @@ export class OpenCodeAdapter implements PlatformAdapter {
     // Skills 索引
     sections.push(`---\n`);
     sections.push(`## Skills\n`);
-    sections.push(`| Skill | 类型 | 说明 |`);
-    sections.push(`|-------|------|------|`);
-    for (const skill of skills) {
-      const desc = skill.frontmatter.description || "";
-      sections.push(
-        `| ${skill.frontmatter.name} | ${skill.frontmatter.type} | ${desc} |`
-      );
+
+    const coreSkills = skills.filter((s) => s.frontmatter.type === "capability");
+    const constraintSkills = skills.filter((s) => s.frontmatter.type === "constraint");
+
+    if (coreSkills.length > 0) {
+      sections.push(`### 核心 Skills\n`);
+      sections.push(`| Skill     | 类型       | 说明                     | 路径                                           |`);
+      sections.push(`| --------- | ---------- | ------------------------ | ---------------------------------------------- |`);
+      for (const skill of coreSkills) {
+        const desc = skill.frontmatter.description || "";
+        sections.push(
+          `| ${skill.frontmatter.name} | ${skill.frontmatter.type} | ${desc} | [.opencode/skills/${skill.frontmatter.name}/](.opencode/skills/${skill.frontmatter.name}/SKILL.md) |`
+        );
+      }
+      sections.push(``);
     }
-    sections.push(``);
+
+    if (constraintSkills.length > 0) {
+      sections.push(`### 通用约束 Skills\n`);
+      sections.push(`| Skill              | 类型       | 说明                  | 路径                                                             |`);
+      sections.push(`| ------------------ | ---------- | --------------------- | ---------------------------------------------------------------- |`);
+      for (const skill of constraintSkills) {
+        const desc = skill.frontmatter.description || "";
+        sections.push(
+          `| ${skill.frontmatter.name} | ${skill.frontmatter.type} | ${desc} | [.opencode/skills/${skill.frontmatter.name}/](.opencode/skills/${skill.frontmatter.name}/SKILL.md) |`
+        );
+      }
+      sections.push(``);
+    }
 
     // Workflows 索引
     sections.push(`---\n`);
     sections.push(`## Workflows\n`);
-    sections.push(`| Workflow | 说明 | 文件 |`);
-    sections.push(`|----------|------|------|`);
+    sections.push(`| Workflow      | 说明                                            | 文件                                             |`);
+    sections.push(`| ------------- | ----------------------------------------------- | ------------------------------------------------ |`);
     for (const wf of workflows) {
       const desc = wf.frontmatter.description || "";
       sections.push(
-        `| **${wf.frontmatter.name}** | ${desc} | [workflows/${wf.frontmatter.name}.md](workflows/${wf.frontmatter.name}.md) |`
+        `| **${wf.frontmatter.name}** | ${desc} | [.opencode/workflows/${wf.frontmatter.name}.md](.opencode/workflows/${wf.frontmatter.name}.md) |`
       );
     }
     sections.push(``);

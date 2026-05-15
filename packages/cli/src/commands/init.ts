@@ -2,6 +2,7 @@ import { defineCommand } from "citty";
 import { consola } from "consola";
 import { resolve, basename } from "node:path";
 import { initProject, type PlatformName } from "@kq-forge/core";
+import { syncPlatforms } from "../sync.js";
 
 export const initCommand = defineCommand({
   meta: {
@@ -60,7 +61,7 @@ export const initCommand = defineCommand({
         force: args.force,
       });
 
-      // 输出结果
+      // 输出 init 结果
       for (const file of result.files) {
         if (file.action === "created") {
           consola.success(`创建 ${file.path}`);
@@ -73,6 +74,22 @@ export const initCommand = defineCommand({
         consola.warn(warning);
       }
 
+      // 如果指定了平台，自动执行 sync
+      if (platforms.length > 0) {
+        consola.start("同步平台配置...");
+        const syncResult = await syncPlatforms(targetDir);
+
+        for (const warning of syncResult.warnings) {
+          consola.warn(warning);
+        }
+
+        for (const { name, result: platformResult } of syncResult.platforms) {
+          for (const file of platformResult.files) {
+            consola.success(`[${name}] ${file.action} ${file.path}`);
+          }
+        }
+      }
+
       consola.box(
         `KQ-Forge 初始化完成！\n\n` +
           `项目: ${projectName}\n` +
@@ -80,6 +97,7 @@ export const initCommand = defineCommand({
           `下一步:\n` +
           `  kq-forge add-platform opencode  # 添加平台\n` +
           `  kq-forge add frontend           # 添加场景包\n` +
+          `  kq-forge sync                   # 重新同步平台文件\n` +
           `  kq-forge status                 # 查看状态`
       );
     } catch (e) {

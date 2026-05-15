@@ -5,6 +5,7 @@ import { addCommand } from "./commands/add.js";
 import { listPackagesCommand } from "./commands/list-packages.js";
 import { statusCommand } from "./commands/status.js";
 import { validateCommand } from "./commands/validate.js";
+import { syncCommand } from "./commands/sync.js";
 
 const main = defineCommand({
   meta: {
@@ -19,6 +20,7 @@ const main = defineCommand({
     "list-packages": listPackagesCommand,
     status: statusCommand,
     validate: validateCommand,
+    sync: syncCommand,
   },
 });
 
