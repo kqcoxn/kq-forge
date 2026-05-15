@@ -206,7 +206,7 @@ async function validateProject(projectRoot) {
       });
     }
   }
-  const agentsDir = join2(projectRoot, "agents");
+  const agentsDir = join2(projectRoot, ".kqforge", "agents");
   if (existsSync2(agentsDir)) {
     const files = await readdir(agentsDir);
     for (const file of files) {
@@ -234,7 +234,7 @@ async function validateProject(projectRoot) {
       }
     }
   }
-  const skillsDir = join2(projectRoot, "skills");
+  const skillsDir = join2(projectRoot, ".kqforge", "skills");
   if (existsSync2(skillsDir)) {
     const dirs = await readdir(skillsDir, { withFileTypes: true });
     for (const entry of dirs) {
@@ -270,7 +270,7 @@ async function validateProject(projectRoot) {
       }
     }
   }
-  const workflowsDir = join2(projectRoot, "workflows");
+  const workflowsDir = join2(projectRoot, ".kqforge", "workflows");
   if (existsSync2(workflowsDir)) {
     const files = await readdir(workflowsDir);
     for (const file of files) {
@@ -537,7 +537,7 @@ async function addPackage(options) {
   const addedSkills = [];
   const addedWorkflows = [];
   const skipped = [];
-  const skillsDir = join5(targetDir, "skills");
+  const skillsDir = join5(targetDir, ".kqforge", "skills");
   await mkdir3(skillsDir, { recursive: true });
   for (const skillName of pkg.skills) {
     const src = join5(templateRoot, "skills", skillName);
@@ -554,7 +554,7 @@ async function addPackage(options) {
     addedSkills.push(skillName);
   }
   if (pkg.workflows.length > 0) {
-    const workflowsDir = join5(targetDir, "workflows");
+    const workflowsDir = join5(targetDir, ".kqforge", "workflows");
     await mkdir3(workflowsDir, { recursive: true });
     for (const wfName of pkg.workflows) {
       const src = join5(templateRoot, "workflows", `${wfName}.md`);
@@ -1688,6 +1688,19 @@ var addCommand = defineCommand3({
       }
     }
     consola3.success(result.message);
+    if (result.addedSkills.length > 0 || result.addedWorkflows.length > 0) {
+      consola3.start("\u540C\u6B65\u5E73\u53F0\u914D\u7F6E...");
+      try {
+        const syncResult = await syncPlatforms(targetDir);
+        for (const { name, result: platformResult } of syncResult.platforms) {
+          const newFiles = platformResult.files.length;
+          consola3.success(`[${name}] \u540C\u6B65 ${newFiles} \u4E2A\u6587\u4EF6`);
+        }
+      } catch (e) {
+        consola3.warn(`\u540C\u6B65\u5931\u8D25: ${e.message}`);
+        consola3.info("\u53EF\u7A0D\u540E\u624B\u52A8\u8FD0\u884C kq-forge sync");
+      }
+    }
   }
 });
 
@@ -1736,12 +1749,10 @@ var statusCommand = defineCommand5({
     }
     try {
       const config = await loadConfig(targetDir);
-      const agentCount = await countFiles(join10(targetDir, "agents"), ".md");
-      const workflowCount = await countFiles(
-        join10(targetDir, "workflows"),
-        ".md"
-      );
-      const skillCount = await countDirs(join10(targetDir, "skills"));
+      const kqDir = join10(targetDir, ".kqforge");
+      const agentCount = await countFiles(join10(kqDir, "agents"), ".md");
+      const workflowCount = await countFiles(join10(kqDir, "workflows"), ".md");
+      const skillCount = await countDirs(join10(kqDir, "skills"));
       console.log();
       console.log(`  \u9879\u76EE: ${config.project.name}`);
       if (config.project.description) {

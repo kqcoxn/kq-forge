@@ -64,7 +64,7 @@ export async function validateProject(
   }
 
   // 2. 校验 Agents
-  const agentsDir = join(projectRoot, "agents");
+  const agentsDir = join(projectRoot, ".kqforge", "agents");
   if (existsSync(agentsDir)) {
     const files = await readdir(agentsDir);
     for (const file of files) {
@@ -94,7 +94,7 @@ export async function validateProject(
   }
 
   // 3. 校验 Skills
-  const skillsDir = join(projectRoot, "skills");
+  const skillsDir = join(projectRoot, ".kqforge", "skills");
   if (existsSync(skillsDir)) {
     const dirs = await readdir(skillsDir, { withFileTypes: true });
     for (const entry of dirs) {
@@ -132,7 +132,7 @@ export async function validateProject(
   }
 
   // 4. 校验 Workflows
-  const workflowsDir = join(projectRoot, "workflows");
+  const workflowsDir = join(projectRoot, ".kqforge", "workflows");
   if (existsSync(workflowsDir)) {
     const files = await readdir(workflowsDir);
     for (const file of files) {

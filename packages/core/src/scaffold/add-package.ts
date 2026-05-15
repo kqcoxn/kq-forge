@@ -18,7 +18,7 @@ export interface AddPackageResult {
 }
 
 /**
- * 添加场景包到项目
+ * 添加场景包到项目（复制到 .kqforge/ 内部）
  */
 export async function addPackage(
   options: AddPackageOptions
@@ -53,8 +53,8 @@ export async function addPackage(
   const addedWorkflows: string[] = [];
   const skipped: string[] = [];
 
-  // 复制 skills
-  const skillsDir = join(targetDir, "skills");
+  // 复制 skills 到 .kqforge/skills/
+  const skillsDir = join(targetDir, ".kqforge", "skills");
   await mkdir(skillsDir, { recursive: true });
 
   for (const skillName of pkg.skills) {
@@ -75,9 +75,9 @@ export async function addPackage(
     addedSkills.push(skillName);
   }
 
-  // 复制 workflows
+  // 复制 workflows 到 .kqforge/workflows/
   if (pkg.workflows.length > 0) {
-    const workflowsDir = join(targetDir, "workflows");
+    const workflowsDir = join(targetDir, ".kqforge", "workflows");
     await mkdir(workflowsDir, { recursive: true });
 
     for (const wfName of pkg.workflows) {

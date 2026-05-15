@@ -22,13 +22,11 @@ export const statusCommand = defineCommand({
     try {
       const config = await loadConfig(targetDir);
 
-      // 统计各目录文件数
-      const agentCount = await countFiles(join(targetDir, "agents"), ".md");
-      const workflowCount = await countFiles(
-        join(targetDir, "workflows"),
-        ".md"
-      );
-      const skillCount = await countDirs(join(targetDir, "skills"));
+      // 统计 .kqforge/ 内各目录文件数
+      const kqDir = join(targetDir, ".kqforge");
+      const agentCount = await countFiles(join(kqDir, "agents"), ".md");
+      const workflowCount = await countFiles(join(kqDir, "workflows"), ".md");
+      const skillCount = await countDirs(join(kqDir, "skills"));
 
       console.log();
       console.log(`  项目: ${config.project.name}`);
